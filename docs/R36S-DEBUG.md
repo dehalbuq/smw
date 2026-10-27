@@ -18,8 +18,9 @@ no ambiente temporario do build. O codigo original do fork nao e sobrescrito.
 3. Abra **SMW R36S ARM64 Debug** e escolha **Run workflow** (branch main).
 4. Quando finalizar, baixe o artefato **smw-r36s-arm64-debug**.
 5. O ELF deve ser AArch64 e compilado com -O2 -mcpu=cortex-a35.
-   O Debian bullseye fornece glibc 2.31, mas a compatibilidade real com
-   DarkOSRE depende das bibliotecas presentes no dispositivo.
+   O Debian bookworm fornece glibc 2.36; a compatibilidade real com
+   DarkOSRE depende das bibliotecas presentes no dispositivo. Se surgir
+   GLIBC_2.36 not found, sera preciso refazer a build com sysroot antigo.
 
 O workflow nao precisa do arquivo de recursos para compilar.
 
