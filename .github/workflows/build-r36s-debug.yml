@@ -23,6 +23,12 @@ jobs:
       - name: Instalar compilador e SDL2 ARM64
         run: |
           set -eu
+          # Bullseye security packages may be stale/moved after its lifecycle.
+          # For reproducible older glibc, use bullseye main instead of stale security pool.
+          if [ -f /etc/apt/sources.list ]; then sed -i '/debian-security/d' /etc/apt/sources.list; fi
+          if [ -d /etc/apt/sources.list.d ]; then
+            find /etc/apt/sources.list.d -type f -name '*.list' -exec sed -i '/debian-security/d' {} +
+          fi
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev ca-certificates
       - name: Aplicar diagnostico sem alterar a base original do fork
