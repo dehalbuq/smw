@@ -1,0 +1,54 @@
+name: SMW R36S ARM64 Debug
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'smb1/**'
+      - 'smbll/**'
+      - 'third_party/**'
+      - 'Makefile'
+      - 'tools/**'
+      - 'overlay/**'
+      - 'port/**'
+      - '.github/workflows/build-r36s-debug.yml'
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: debian:bullseye
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar compilador e SDL2 ARM64
+        run: |
+          set -eu
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev ca-certificates
+      - name: Aplicar diagnostico sem alterar a base original do fork
+        run: python3 tools/apply_overlay.py .
+      - name: Compilar para RK3326 Cortex-A35 em ARM64
+        run: |
+          set -eu
+          make -j2 smw CC=gcc \
+            CFLAGS='-O2 -g3 -ggdb -mcpu=cortex-a35 -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -fno-optimize-sibling-calls -fstack-protector-strong -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -I.' \
+            LDFLAGS='-no-pie -Wl,--build-id=sha1 -rdynamic'
+          file smw
+          readelf -h smw | grep -E 'Class:|Machine:|Type:'
+          mkdir -p dist/smw-r36s dist/debug-symbols
+          cp smw dist/smw-r36s/smw
+          cp port/smw-r36s.ini dist/smw-r36s/smw.ini
+          cp LICENSE.txt dist/smw-r36s/LICENSE.txt
+          cp port/SMW-R36S-Debug.sh dist/SMW-R36S-Debug.sh
+          chmod +x dist/SMW-R36S-Debug.sh dist/smw-r36s/smw
+          objcopy --only-keep-debug smw dist/debug-symbols/smw.debug
+          printf 'source_commit=%s\n' "$(git rev-parse HEAD)" > dist/debug-symbols/BUILD-INFO.txt
+          ldd smw >> dist/debug-symbols/BUILD-INFO.txt 2>&1 || true
+          sha256sum smw >> dist/debug-symbols/BUILD-INFO.txt
+          printf '%s\n' 'Copie o seu proprio smw_assets.dat para esta pasta.' > dist/smw-r36s/COLOQUE-OS-ASSETS-AQUI.txt
+      - name: Publicar executavel, launcher e simbolos
+        uses: actions/upload-artifact@v4
+        with:
+          name: smw-r36s-arm64-debug
+          path: dist/
+          retention-days: 30
