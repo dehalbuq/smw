@@ -43,7 +43,8 @@ jobs:
           cp port/SMW-R36S-Debug.sh dist/SMW-R36S-Debug.sh
           chmod +x dist/SMW-R36S-Debug.sh dist/smw-r36s/smw
           objcopy --only-keep-debug smw dist/debug-symbols/smw.debug
-          printf 'source_commit=%s\n' "$(git rev-parse HEAD)" > dist/debug-symbols/BUILD-INFO.txt
+          printf 'source_commit=%s\n' "$GITHUB_SHA" > dist/debug-symbols/BUILD-INFO.txt
+          printf 'glibc_build=%s\n' "$(getconf GNU_LIBC_VERSION)" >> dist/debug-symbols/BUILD-INFO.txt
           ldd smw >> dist/debug-symbols/BUILD-INFO.txt 2>&1 || true
           sha256sum smw >> dist/debug-symbols/BUILD-INFO.txt
           printf '%s\n' 'Copie o seu proprio smw_assets.dat para esta pasta.' > dist/smw-r36s/COLOQUE-OS-ASSETS-AQUI.txt
