@@ -30,8 +30,9 @@ jobs:
       - name: Compilar para RK3326 Cortex-A35 em ARM64
         run: |
           set -eu
+          SDL_CFLAGS="$(sdl2-config --cflags)"
           make -j2 smw CC=gcc \
-            CFLAGS='-O2 -g3 -ggdb -mcpu=cortex-a35 -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -fno-optimize-sibling-calls -fstack-protector-strong -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -I.' \
+            CFLAGS="-O2 -g3 -ggdb -mcpu=cortex-a35 -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -fno-optimize-sibling-calls -fstack-protector-strong -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -I. $SDL_CFLAGS" \
             LDFLAGS='-no-pie -Wl,--build-id=sha1 -rdynamic'
           file smw
           readelf -h smw | grep -E 'Class:|Machine:|Type:'
