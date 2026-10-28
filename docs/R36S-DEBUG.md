@@ -44,7 +44,31 @@ O arquivo smw_assets.dat deve permanecer **fora do repositorio publico**.
 
 Coloque o launcher na pasta ports e o binario ARM64 em smw-r36s/smw.
 Se necessario, aplique chmod +x nos arquivos executaveis.
-Inicialize via menu Ports. Para sair, segure SELECT + START por dois segundos.
+Inicialize via menu Ports.
+
+### Menu de saida (build de 28/10/2026)
+
+No R36S, segure **SELECT por aproximadamente um segundo** para abrir o menu
+**SAIR DO JOGO?**. Com o menu aberto:
+
+- START: confirma SAIR DO JOGO e encerra normalmente, gravando o log.
+- SELECT: cancela e volta ao jogo.
+- A: confirma a saida.
+- B: cancela.
+- Teclado USB: ESC abre/fecha o menu e ENTER confirma.
+
+**Saida de emergencia:** segure SELECT + START juntos durante pelo menos
+3 segundos. O jogo encerra mesmo que a janela do menu nao desenhe.
+
+O menu pausa a simulacao e o som enquanto estiver visivel.
+Os registros esperados sao [EXIT_MENU], [EXIT_REQUEST], [SHUTDOWN]
+no log de diagnostico e game_exit_status=0 no log do launcher.
+
+Observacao: a placa GO-Super Gamepad detectada no DarkOSRE tem raw joystick
+SELECT=b12 e START=b13, apesar de esses botoes faltarem no mapeamento
+SDL_GameController. Outros modelos podem definir
+SMW_R36S_SELECT_BUTTON e SMW_R36S_START_BUTTON no launcher.
+
 
 ## START / SELECT no R36S
 
