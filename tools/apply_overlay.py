@@ -37,6 +37,60 @@ changes = [
      '    uint8 is_replay = RtlRunFrame(inputs | GetActiveControllers());\n\n'
      '    frameCtr++;\n'
      '    R36SDiag_AfterFrame(frameCtr, inputs, g_got_mismatch_count, game_id);'),
+    # GameController mappings on some RK3326 firmwares omit physical
+    # Select/Start. SDL joystick button 12/13 is the documented R36S layout;
+    # expose overrides for clone boards and log raw IDs to confirm.
+    ('  for (int i = 0; i < SDL_NumJoysticks(); i++)\n    OpenOneGamepad(i);',
+     '  SDL_JoystickEventState(SDL_ENABLE);\n'
+     '  R36SDiag_Message("INPUT", "Raw joystick SELECT/START fallback enabled; '
+     'defaults b12/b13; configurable via SMW_R36S_SELECT_BUTTON/SMW_R36S_START_BUTTON");\n'
+     '  for (int i = 0; i < SDL_NumJoysticks(); i++)\n    OpenOneGamepad(i);'),
+    ('      case SDL_MOUSEWHEEL:',
+     '      case SDL_JOYBUTTONDOWN:\n'
+     '      case SDL_JOYBUTTONUP: {\n'
+     '        gi = GetGamepadInfo(event.jbutton.which);\n'
+     '        static unsigned raw_log_count = 0;\n'
+     '        if (raw_log_count++ < 64) {\n'
+     '          char msg[160];\n'
+     '          snprintf(msg, sizeof(msg), "joystick=%d raw_button=%u pressed=%d recognized=%d",\n'
+     '                   (int)event.jbutton.which, (unsigned)event.jbutton.button,\n'
+     '                   event.type == SDL_JOYBUTTONDOWN, gi != NULL);\n'
+     '          R36SDiag_Message("RAW_JOY", msg);\n'
+     '        }\n'
+     '        const char *sel_env = getenv("SMW_R36S_SELECT_BUTTON");\n'
+     '        const char *start_env = getenv("SMW_R36S_START_BUTTON");\n'
+     '        int sel = sel_env ? atoi(sel_env) : 12;\n'
+     '        int start = start_env ? atoi(start_env) : 13;\n'
+     '        int mapped = event.jbutton.button == sel ? kGamepadBtn_Back :\n'
+     '                     event.jbutton.button == start ? kGamepadBtn_Start : -1;\n'
+     '        if (gi && mapped >= 0) {\n'
+     '          HandleGamepadInput(gi, mapped, event.type == SDL_JOYBUTTONDOWN);\n'
+     '          char msg[128];\n'
+     '          snprintf(msg, sizeof(msg), "raw=%d mapped=%s pressed=%d",\n'
+     '                   (int)event.jbutton.button, mapped == kGamepadBtn_Back ? "SELECT" : "START",\n'
+     '                   event.type == SDL_JOYBUTTONDOWN);\n'
+     '          R36SDiag_Message("MENU_BUTTON", msg);\n'
+     '        }\n'
+     '        break;\n'
+     '      }\n'
+     '      case SDL_MOUSEWHEEL:'),
+    ('          if (b >= 0)\n            HandleGamepadInput(gi, b, event.type == SDL_CONTROLLERBUTTONDOWN);',
+     '          if (b >= 0) {\n'
+     '            HandleGamepadInput(gi, b, event.type == SDL_CONTROLLERBUTTONDOWN);\n'
+     '            if (b == kGamepadBtn_Back || b == kGamepadBtn_Start || b == kGamepadBtn_Guide) {\n'
+     '              char msg[120];\n'
+     '              snprintf(msg, sizeof(msg), "SDL_Controller raw=%u mapped=%d pressed=%d",\n'
+     '                       (unsigned)event.cbutton.button, b, event.type == SDL_CONTROLLERBUTTONDOWN);\n'
+     '              R36SDiag_Message("MENU_BUTTON", msg);\n'
+     '            }\n'
+     '          }'),
+    ('    printf("Found controller \'%s\' assigning to player %d\\n", SDL_GameControllerName(controller), found_idx + 1);',
+     '    printf("Found controller \'%s\' assigning to player %d\\n", SDL_GameControllerName(controller), found_idx + 1);\n'
+     '    {\n'
+     '      char *mapping = SDL_GameControllerMapping(controller);\n'
+     '      R36SDiag_Message("CONTROLLER_MAPPING", mapping ? mapping : "SDL mapping unavailable");\n'
+     '      if (mapping) SDL_free(mapping);\n'
+     '    }'),
     ('    if (g_paused != audiopaused) {',
      '    /* Hold SELECT/BACK + START for 2 seconds to exit, even if paused. */\n'
      '    {\n'
