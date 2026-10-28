@@ -16,3 +16,6 @@ smw_assets.dat
 __pycache__
 /enhanced/
 *.sfc
+# R36S locally generated ROM assets and patched output
+smw_assets*.dat
+smw-*.sfc
