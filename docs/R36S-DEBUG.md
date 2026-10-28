@@ -46,6 +46,30 @@ Coloque o launcher na pasta ports e o binario ARM64 em smw-r36s/smw.
 Se necessario, aplique chmod +x nos arquivos executaveis.
 Inicialize via menu Ports. Para sair, segure SELECT + START por dois segundos.
 
+## START / SELECT no R36S
+
+Esta build possui fallback para botões **brutos SDL_JOYBUTTON**:
+SELECT = indice 12 e START = indice 13 (padrao publicado para R36S).
+Ela tambem continua aceitando os eventos SDL GameController convencionais.
+O mecanismo pode variar de acordo com a revisao da placa e o firmware.
+
+Pressione SELECT e START separadamente no inicio do jogo e depois
+juntos por 2 segundos. Os logs agora incluem eventos `[RAW_JOY]`,
+`[MENU_BUTTON]` e `[CONTROLLER_MAPPING]`, uteis para confirmar
+a numeracao real. O teste em hardware e necessario para validar o ajuste.
+
+Se seu aparelho usa indices diferentes, coloque antes da linha
+`if [ "${SMW_EXTERNAL_ROM:-0}"...` do script de inicializacao:
+
+    export SMW_R36S_SELECT_BUTTON=12
+    export SMW_R36S_START_BUTTON=13
+
+Altere 12/13 conforme os indices reportados no log. Se nao aparecer
+nenhum evento `[RAW_JOY]`, envie os registros para diagnosticar
+eventos SDL ou teclado remapeado.
+
+Para patches de traducao/graphics BPS, leia docs/R36S-BPS.md.
+
 ## Investigacao de crashes
 
 Os logs sao armazenados em:
