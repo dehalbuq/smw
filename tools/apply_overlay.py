@@ -20,7 +20,7 @@ if '"r36s_diag.h"' in source:
     sys.exit("ERROR: diagnostics already applied; no changes made")
 
 changes = [
-    ('#include "smw_spc_player.h"', '#include "smw_spc_player.h"\n#include "r36s_diag.h"'),
+    ('#include "smw_spc_player.h"', '#include "smw_spc_player.h"\n#include "r36s_diag.h"\n#include "r36s_quit_menu.h"'),
     ('void NORETURN Die(const char *error) {\n',
      'void NORETURN Die(const char *error) {\n  R36SDiag_Message("DIE", error);\n'),
     ('  ParseConfigFile(config_file);\n\n  LoadAssets();',
@@ -91,20 +91,27 @@ changes = [
      '      R36SDiag_Message("CONTROLLER_MAPPING", mapping ? mapping : "SDL mapping unavailable");\n'
      '      if (mapping) SDL_free(mapping);\n'
      '    }'),
+    ('  g_renderer_funcs.EndDraw();',
+     '  R36SQuitMenu_Draw(pixel_buffer, pitch, g_snes_width * render_scale,\\n'
+     '                    g_snes_height * render_scale, render_scale);\\n'
+     '  g_renderer_funcs.EndDraw();'),
+    ('    while (SDL_PollEvent(&event)) {\\n      switch (event.type) {',
+     '    while (SDL_PollEvent(&event)) {\\n'
+     '      if (R36SQuitMenu_HandleEvent(&event)) continue;\\n'
+     '      switch (event.type) {'),
     ('    if (g_paused != audiopaused) {',
-     '    /* Hold SELECT/BACK + START for 2 seconds to exit, even if paused. */\n'
-     '    {\n'
-     '      static uint32 quit_held_since = 0;\n'
-     '      uint32 mask = (1u << kGamepadBtn_Back) | (1u << kGamepadBtn_Start);\n'
-     '      int held = (g_gamepad[0].modifiers & mask) == mask;\n'
-     '      if (!held) quit_held_since = 0;\n'
-     '      else if (!quit_held_since) quit_held_since = SDL_GetTicks();\n'
-     '      else if ((uint32)(SDL_GetTicks() - quit_held_since) >= 2000) {\n'
-     '        R36SDiag_Message("INPUT", "SELECT+START held 2 seconds: exiting");\n'
-     '        running = false;\n'
-     '        break;\n'
-     '      }\n'
-     '    }\n'
+     '    R36SQuitMenu_Update();\\n'
+     '    if (R36SQuitMenu_WantsExit()) {\\n'
+     '      running = false;\\n'
+     '      break;\\n'
+     '    }\\n'
+     '    if (R36SQuitMenu_IsOpen()) {\\n'
+     '      if (g_audio_device) SDL_PauseAudioDevice(g_audio_device, 1);\\n'
+     '      audiopaused = true;\\n'
+     '      DrawPpuFrameWithPerf();\\n'
+     '      SDL_Delay(16);\\n'
+     '      continue;\\n'
+     '    }\\n'
      '    if (g_paused != audiopaused) {'),
     ('  SDL_DestroyWindow(window);\n  SDL_Quit();\n  return 0;',
      '  SDL_DestroyWindow(window);\n  SDL_Quit();\n  R36SDiag_Close();\n  return 0;'),
@@ -123,7 +130,7 @@ for old, new in changes:
         sys.exit(f"ERROR: upstream anchor count {count}, expected 1: {old[:100]!r}; NOT MODIFIED")
     source = source.replace(old, new, 1)
 
-for name in ("r36s_diag.c", "r36s_diag.h"):
+for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h"):
     src = BASE / "overlay/src" / name
     if not src.is_file():
         sys.exit(f"ERROR: overlay file not found: {src}")
@@ -132,7 +139,7 @@ if (repo / "src/main.c.before-r36s-debug").exists():
 
 shutil.copy2(main, repo / "src/main.c.before-r36s-debug")
 main.write_text(source, encoding="utf-8", newline="\n")
-for name in ("r36s_diag.c", "r36s_diag.h"):
+for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h"):
     shutil.copy2(BASE / "overlay/src" / name, repo / "src" / name)
 
 print("R36S instrumentation applied to build workspace (not tracked in git)")
