@@ -92,26 +92,26 @@ changes = [
      '      if (mapping) SDL_free(mapping);\n'
      '    }'),
     ('  g_renderer_funcs.EndDraw();',
-     '  R36SQuitMenu_Draw(pixel_buffer, pitch, g_snes_width * render_scale,\\n'
-     '                    g_snes_height * render_scale, render_scale);\\n'
+     '  R36SQuitMenu_Draw(pixel_buffer, pitch, g_snes_width * render_scale,\n'
+     '                    g_snes_height * render_scale, render_scale);\n'
      '  g_renderer_funcs.EndDraw();'),
-    ('    while (SDL_PollEvent(&event)) {\\n      switch (event.type) {',
-     '    while (SDL_PollEvent(&event)) {\\n'
-     '      if (R36SQuitMenu_HandleEvent(&event)) continue;\\n'
+    ('    while (SDL_PollEvent(&event)) {\n      switch (event.type) {',
+     '    while (SDL_PollEvent(&event)) {\n'
+     '      if (R36SQuitMenu_HandleEvent(&event)) continue;\n'
      '      switch (event.type) {'),
     ('    if (g_paused != audiopaused) {',
-     '    R36SQuitMenu_Update();\\n'
-     '    if (R36SQuitMenu_WantsExit()) {\\n'
-     '      running = false;\\n'
-     '      break;\\n'
-     '    }\\n'
-     '    if (R36SQuitMenu_IsOpen()) {\\n'
-     '      if (g_audio_device) SDL_PauseAudioDevice(g_audio_device, 1);\\n'
-     '      audiopaused = true;\\n'
-     '      DrawPpuFrameWithPerf();\\n'
-     '      SDL_Delay(16);\\n'
-     '      continue;\\n'
-     '    }\\n'
+     '    R36SQuitMenu_Update();\n'
+     '    if (R36SQuitMenu_WantsExit()) {\n'
+     '      running = false;\n'
+     '      break;\n'
+     '    }\n'
+     '    if (R36SQuitMenu_IsOpen()) {\n'
+     '      if (g_audio_device) SDL_PauseAudioDevice(g_audio_device, 1);\n'
+     '      audiopaused = true;\n'
+     '      DrawPpuFrameWithPerf();\n'
+     '      SDL_Delay(16);\n'
+     '      continue;\n'
+     '    }\n'
      '    if (g_paused != audiopaused) {'),
     ('  SDL_DestroyWindow(window);\n  SDL_Quit();\n  return 0;',
      '  SDL_DestroyWindow(window);\n  SDL_Quit();\n  R36SDiag_Close();\n  return 0;'),
