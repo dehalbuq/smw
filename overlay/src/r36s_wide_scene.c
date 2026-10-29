@@ -38,7 +38,7 @@ static unsigned map16_tile(int layer, int wx, int wy) {
   unsigned addr=lo+index;
   unsigned block=g_ram[addr] | ((unsigned)g_ram[0x10000+addr]<<8);
   if(block>=512) return 0xffff;
-  unsigned definition=g_ram[0xfbe+block*2] | ((unsigned)g_ram[0xfbf+block*2]<<8);
+  unsigned definition=g_ram[0x0fbe + block*2] | ((unsigned)g_ram[0x0fbf + block*2]<<8);
   /* Map16 definitions are eight bytes per 16x16 block in ROM bank $0D.
      Special animated / extended tiles may have other sources: fallback. */
   if(definition<0x8000||definition>0xfff6) return 0xffff;
