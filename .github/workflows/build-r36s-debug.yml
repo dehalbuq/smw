@@ -24,7 +24,7 @@ jobs:
         run: |
           set -eu
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev ca-certificates
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev ca-certificates
       - name: Aplicar diagnostico sem alterar a base original do fork
         run: python3 tools/apply_overlay.py .
       - name: Compilar para RK3326 Cortex-A35 em ARM64
@@ -38,11 +38,21 @@ jobs:
           readelf -h smw | grep -E 'Class:|Machine:|Type:'
           mkdir -p dist/smw-r36s dist/debug-symbols
           cp smw dist/smw-r36s/smw
+          # Separate GLES2 build: default binary has NO libGLESv2/EGL dependency.
+          objcopy --only-keep-debug smw dist/debug-symbols/smw.debug
+          make clean_obj
+          make -j2 smw CC=gcc \
+            CFLAGS="-O2 -g3 -ggdb -mcpu=cortex-a35 -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -fno-optimize-sibling-calls -fstack-protector-strong -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -DR36S_GLES2_SUPPORT=1 -I. $SDL_CFLAGS" \
+            LDFLAGS='-no-pie -Wl,--build-id=sha1 -rdynamic -lGLESv2 -lEGL'
+          cp smw dist/smw-r36s/smw-gles2
+          chmod +x dist/smw-r36s/smw-gles2
+          objcopy --only-keep-debug smw dist/debug-symbols/smw-gles2.debug
+          ldd smw > dist/debug-symbols/GLES2-LIBRARIES.txt 2>&1 || true
           cp port/smw-r36s.ini dist/smw-r36s/smw.ini
           cp LICENSE.txt dist/smw-r36s/LICENSE.txt
           cp port/SMW-R36S-Debug.sh dist/SMW-R36S-Debug.sh
           chmod +x dist/SMW-R36S-Debug.sh dist/smw-r36s/smw
-          objcopy --only-keep-debug smw dist/debug-symbols/smw.debug
+
           printf 'source_commit=%s\n' "$GITHUB_SHA" > dist/debug-symbols/BUILD-INFO.txt
           printf 'glibc_build=%s\n' "$(getconf GNU_LIBC_VERSION)" >> dist/debug-symbols/BUILD-INFO.txt
           ldd smw >> dist/debug-symbols/BUILD-INFO.txt 2>&1 || true
