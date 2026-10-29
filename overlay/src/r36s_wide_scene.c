@@ -8,6 +8,7 @@
 #include <string.h>
 
 enum { kNativeWidth=256, kNativeHeight=224, kWideWidth=342 };
+static unsigned long map16_lookups, map16_valid;
 
 static uint16_t read_rom_word(unsigned bank, unsigned addr) {
   if (!g_rom || addr < 0x8000 || addr > 0xfffe || bank > 15) return 0;
@@ -26,6 +27,7 @@ static unsigned tile_pixel(const uint16_t *vram, unsigned address, int x, int y,
   return pixel;
 }
 static unsigned map16_tile(int layer, int wx, int wy) {
+  ++map16_lookups;
   if(wx<0||wy<0||wy>=432||misc_level_mode_setting>=32) return 0xffff;
   int screen=wx>>8;
   if(screen >= misc_screens_in_lvl) return 0xffff;
@@ -44,6 +46,7 @@ static unsigned map16_tile(int layer, int wx, int wy) {
   if(definition<0x8000||definition>0xfff6) return 0xffff;
   unsigned subtile=(wx&8?4:0)+(wy&8?2:0);
   unsigned word=read_rom_word(13,definition+subtile);
+  if(word!=0xffff) ++map16_valid;
   return word;
 }
 typedef struct Pixel { unsigned palette_index, priority; } Pixel;
@@ -107,6 +110,7 @@ void R36SWideScene_Compose(uint8_t *dst,int pitch,int width,int height,
   if(!dst||!native||pitch<width*4||native_pitch<kNativeWidth*4||
      width<kNativeWidth||height<kNativeHeight) return;
   static unsigned long frame;
+  map16_lookups=map16_valid=0;
   int expand = r36s_viewport_16_9 && width==kWideWidth &&
       misc_game_mode==0x14 && (g_ppu->bgmode&7)==1 &&
       !(misc_level_layout_flags&1) && misc_screens_in_lvl>=2 && g_rom!=NULL;
@@ -138,9 +142,10 @@ void R36SWideScene_Compose(uint8_t *dst,int pitch,int width,int height,
   if((++frame%180)==1) {
     char message[160];
     snprintf(message,sizeof(message),
-       "viewport=%dx%d expand=%d native_left=%d mode=%u bgmode=%u camera=(%d,%d) screens=%u",
+       "viewport=%dx%d expand=%d native_left=%d game=%u levelmode=%u bgmode=%u camera=(%d,%d) screens=%u map16_valid=%lu/%lu",
        width,height,expand,left,(unsigned)misc_game_mode,
-       (unsigned)(g_ppu->bgmode&7),camera_x,camera_y,(unsigned)misc_screens_in_lvl);
+       (unsigned)misc_level_mode_setting,(unsigned)(g_ppu->bgmode&7),
+       camera_x,camera_y,(unsigned)misc_screens_in_lvl,map16_valid,map16_lookups);
     R36SDiag_Message("WIDE_SCENE",message);
   }
 }
