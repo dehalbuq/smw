@@ -206,4 +206,24 @@ c = c.replace(c_output,
 config_h.write_text(h, encoding="utf-8", newline="\n")
 config_c.write_text(c, encoding="utf-8", newline="\n")
 
+# Wide compositor samples the PPU register state at each scanline, BEFORE
+# original ppu_runLine(), so HDMA scroll changes are represented correctly.
+# Only the temporary Actions workspace src/smw_rtl.c is edited here.
+rtl_path = repo / "src/smw_rtl.c"
+rtl = rtl_path.read_text(encoding="utf-8")
+rtl_head = '#include "smw_rtl.h"'
+if rtl.count(rtl_head) != 1:
+    sys.exit("ERROR: src/smw_rtl.c header anchor mismatch")
+rtl = rtl.replace(rtl_head,
+    rtl_head + '\n#include "r36s_wide_scene.h"', 1)
+rtl_loop = '  for (int i = 0; i <= 224; i++) {\n    ppu_runLine(g_ppu, i);'
+if rtl.count(rtl_loop) != 1:
+    sys.exit("ERROR: src/smw_rtl.c scanline loop anchor mismatch")
+rtl = rtl.replace(rtl_loop,
+    '  R36SWideScene_BeginFrame();\n'
+    '  for (int i = 0; i <= 224; i++) {\n'
+    '    if (i > 0) R36SWideScene_CaptureLine(i - 1, g_ppu);\n'
+    '    ppu_runLine(g_ppu, i);', 1)
+rtl_path.write_text(rtl, encoding="utf-8", newline="\n")
+
 print("R36S instrumentation applied to build workspace (not tracked in git)")
