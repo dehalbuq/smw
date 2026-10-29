@@ -1,4 +1,4 @@
-name: SMW R36S ARM64 Debug
+name: SMW R36S Fast 4:3 Pixel-Perfect ARM64
 on:
   workflow_dispatch:
   push:
@@ -20,37 +20,50 @@ jobs:
       image: debian:bookworm
     steps:
       - uses: actions/checkout@v4
-      - name: Instalar compilador e SDL2 ARM64
+      - name: Install Cortex-A35 toolchain and GLES2
         run: |
           set -eu
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev ca-certificates
-      - name: Aplicar diagnostico sem alterar a base original do fork
-        run: python3 tools/apply_overlay.py .
-      - name: Compilar para RK3326 Cortex-A35 em ARM64
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev ca-certificates
+      - name: Apply stable quit-menu diagnostics and fast native 4:3 overlay
+        run: |
+          set -eu
+          python3 tools/apply_overlay.py .
+          python3 tools/apply_perf_overlay.py .
+      - name: Compile Cortex-A35 -O3 LTO (software and optional GLES2)
         run: |
           set -eu
           SDL_CFLAGS="$(sdl2-config --cflags)"
-          make -j2 smw CC=gcc \
-            CFLAGS="-O2 -g3 -ggdb -mcpu=cortex-a35 -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -fno-optimize-sibling-calls -fstack-protector-strong -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -I. $SDL_CFLAGS" \
-            LDFLAGS='-no-pie -Wl,--build-id=sha1 -rdynamic'
-          file smw
-          readelf -h smw | grep -E 'Class:|Machine:|Type:'
+          FAST_FLAGS="-O3 -g -flto -mcpu=cortex-a35 -mtune=cortex-a35 -fno-strict-aliasing -fwrapv -fomit-frame-pointer -ffunction-sections -fdata-sections -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -I. $SDL_CFLAGS"
+          FAST_LDFLAGS="-no-pie -flto -Wl,--build-id=sha1 -Wl,--gc-sections"
+          make -j2 smw CC=gcc CFLAGS="$FAST_FLAGS" LDFLAGS="$FAST_LDFLAGS"
           mkdir -p dist/smw-r36s dist/debug-symbols
+          file smw
+          objcopy --only-keep-debug smw dist/debug-symbols/smw.debug
           cp smw dist/smw-r36s/smw
+          strip --strip-debug dist/smw-r36s/smw
+          make clean_obj
+          make -j2 smw CC=gcc CFLAGS="$FAST_FLAGS -DR36S_GLES2_SUPPORT=1" LDFLAGS="$FAST_LDFLAGS -lGLESv2 -lEGL"
+          file smw
+          objcopy --only-keep-debug smw dist/debug-symbols/smw-gles2.debug
+          cp smw dist/smw-r36s/smw-gles2
+          strip --strip-debug dist/smw-r36s/smw-gles2
+          chmod +x dist/smw-r36s/smw dist/smw-r36s/smw-gles2
           cp port/smw-r36s.ini dist/smw-r36s/smw.ini
           cp LICENSE.txt dist/smw-r36s/LICENSE.txt
           cp port/SMW-R36S-Debug.sh dist/SMW-R36S-Debug.sh
-          chmod +x dist/SMW-R36S-Debug.sh dist/smw-r36s/smw
-          objcopy --only-keep-debug smw dist/debug-symbols/smw.debug
+          chmod +x dist/SMW-R36S-Debug.sh
           printf 'source_commit=%s\n' "$GITHUB_SHA" > dist/debug-symbols/BUILD-INFO.txt
           printf 'glibc_build=%s\n' "$(getconf GNU_LIBC_VERSION)" >> dist/debug-symbols/BUILD-INFO.txt
-          ldd smw >> dist/debug-symbols/BUILD-INFO.txt 2>&1 || true
-          sha256sum smw >> dist/debug-symbols/BUILD-INFO.txt
-          printf '%s\n' 'Copie o seu proprio smw_assets.dat para esta pasta.' > dist/smw-r36s/COLOQUE-OS-ASSETS-AQUI.txt
-      - name: Publicar executavel, launcher e simbolos
+          printf 'native_engine=1\ninteger_pixel_scale=1\noriginal_width=256\noriginal_height=224\n' >> dist/debug-symbols/BUILD-INFO.txt
+          ldd dist/smw-r36s/smw >> dist/debug-symbols/BUILD-INFO.txt 2>&1 || true
+          ldd dist/smw-r36s/smw-gles2 > dist/debug-symbols/GLES2-LIBRARIES.txt 2>&1 || true
+          sha256sum dist/smw-r36s/smw* >> dist/debug-symbols/BUILD-INFO.txt
+          printf '%s\n' 'Use seu proprio smw_assets.dat; ROM/IPS nao incluidos.' > dist/smw-r36s/COLOQUE-OS-ASSETS-AQUI.txt
+          cp docs/R36S-PERFORMANCE-43.md dist/LEIA-ME-R36S-PERFORMANCE.txt
+      - name: Upload fast ARM64 executables and debug symbols
         uses: actions/upload-artifact@v4
         with:
-          name: smw-r36s-arm64-debug
+          name: smw-r36s-fast-43-pixelperfect
           path: dist/
           retention-days: 30
