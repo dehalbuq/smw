@@ -20,7 +20,7 @@ if '"r36s_diag.h"' in source:
     sys.exit("ERROR: diagnostics already applied; no changes made")
 
 changes = [
-    ('#include "smw_spc_player.h"', '#include "smw_spc_player.h"\n#include "r36s_diag.h"\n#include "r36s_quit_menu.h"'),
+    ('#include "smw_spc_player.h"', '#include "smw_spc_player.h"\n#include "r36s_diag.h"\n#include "r36s_quit_menu.h"\n#include "r36s_video.h"\n#include "r36s_gles2.h"'),
     ('void NORETURN Die(const char *error) {\n',
      'void NORETURN Die(const char *error) {\n  R36SDiag_Message("DIE", error);\n'),
     ('  ParseConfigFile(config_file);\n\n  LoadAssets();',
@@ -99,6 +99,33 @@ changes = [
      '    while (SDL_PollEvent(&event)) {\n'
      '      if (R36SQuitMenu_HandleEvent(&event)) continue;\n'
      '      switch (event.type) {'),
+    ('  SDL_RenderClear(g_renderer);\n  SDL_RenderCopy(g_renderer, g_texture, &g_sdl_renderer_rect, NULL);',
+     '  SDL_RenderClear(g_renderer);\n'
+     '  if (r36s_viewport_16_9) {\n'
+     '    int w = 0, h = 0;\n'
+     '    SDL_GetRendererOutputSize(g_renderer, &w, &h);\n'
+     '    R36SViewport r; R36SVideo_ContentRect(w, h, &r);\n'
+     '    SDL_Rect rect = { r.x, r.y, r.w, r.h };\n'
+     '    SDL_RenderCopy(g_renderer, g_texture, &g_sdl_renderer_rect, &rect);\n'
+     '  } else SDL_RenderCopy(g_renderer, g_texture, &g_sdl_renderer_rect, NULL);'),
+    ('  if (g_config.output_method == kOutputMethod_OpenGL) {\n'
+     '    g_win_flags |= SDL_WINDOW_OPENGL;\n'
+     '    OpenGLRenderer_Create(&g_renderer_funcs);\n'
+     '  } else {',
+     '  if (g_config.output_method == kOutputMethod_OpenGL) {\n'
+     '    g_win_flags |= SDL_WINDOW_OPENGL;\n'
+     '    OpenGLRenderer_Create(&g_renderer_funcs);\n'
+     '  }\n'
+     '#ifdef R36S_GLES2_SUPPORT\n'
+     '  else if (g_config.output_method == kOutputMethod_R36S_GLES2) {\n'
+     '    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);\n'
+     '    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);\n'
+     '    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);\n'
+     '    g_win_flags |= SDL_WINDOW_OPENGL;\n'
+     '    R36SGLES2Renderer_Create(&g_renderer_funcs);\n'
+     '  }\n'
+     '#endif\n'
+     '  else {'),
     ('    if (g_paused != audiopaused) {',
      '    R36SQuitMenu_Update();\n'
      '    if (R36SQuitMenu_WantsExit()) {\n'
@@ -130,7 +157,7 @@ for old, new in changes:
         sys.exit(f"ERROR: upstream anchor count {count}, expected 1: {old[:100]!r}; NOT MODIFIED")
     source = source.replace(old, new, 1)
 
-for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h"):
+for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h", "r36s_video.c", "r36s_video.h", "r36s_gles2.c", "r36s_gles2.h"):
     src = BASE / "overlay/src" / name
     if not src.is_file():
         sys.exit(f"ERROR: overlay file not found: {src}")
@@ -139,7 +166,36 @@ if (repo / "src/main.c.before-r36s-debug").exists():
 
 shutil.copy2(main, repo / "src/main.c.before-r36s-debug")
 main.write_text(source, encoding="utf-8", newline="\n")
-for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h"):
+for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h", "r36s_video.c", "r36s_video.h", "r36s_gles2.c", "r36s_gles2.h"):
     shutil.copy2(BASE / "overlay/src" / name, repo / "src" / name)
+
+# Add the experimental renderer selection only to the transient build workspace.
+# Unmodified upstream file remains on main; this does not touch gameplay code.
+config_h = repo / "src/config.h"
+config_c = repo / "src/config.c"
+h = config_h.read_text(encoding="utf-8")
+c = config_c.read_text(encoding="utf-8")
+h_anchor = '  kOutputMethod_OpenGL,'
+if h.count(h_anchor) != 1:
+    sys.exit("ERROR: config.h OpenGL enum anchor not found")
+h = h.replace(h_anchor, h_anchor + '\\n  kOutputMethod_R36S_GLES2,', 1)
+c_includes = '#include "config.h"'
+if c.count(c_includes) != 1:
+    sys.exit("ERROR: config.c include anchor not found")
+c = c.replace(c_includes, c_includes + '\\n#include "r36s_video.h"', 1)
+c_anchor = '    } else if (StringEqualsNoCase(key, "IgnoreAspectRatio")) {'
+if c.count(c_anchor) != 1:
+    sys.exit("ERROR: config.c viewport anchor not found")
+c = c.replace(c_anchor,
+    '    } else if (StringEqualsNoCase(key, "ViewportMode")) {\\n'
+    '      return R36SVideo_ParseViewport(value);\\n' + c_anchor, 1)
+c_output = 'StringEqualsNoCase(value, "OpenGL") ? kOutputMethod_OpenGL : kOutputMethod_SDL;'
+if c.count(c_output) != 1:
+    sys.exit("ERROR: config.c output selector anchor not found")
+c = c.replace(c_output,
+    'StringEqualsNoCase(value, "OpenGL") ? kOutputMethod_OpenGL :\\n'
+    '                               StringEqualsNoCase(value, "OpenGLES2") ? kOutputMethod_R36S_GLES2 : kOutputMethod_SDL;', 1)
+config_h.write_text(h, encoding="utf-8", newline="\\n")
+config_c.write_text(c, encoding="utf-8", newline="\\n")
 
 print("R36S instrumentation applied to build workspace (not tracked in git)")
