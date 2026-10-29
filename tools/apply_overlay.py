@@ -20,7 +20,7 @@ if '"r36s_diag.h"' in source:
     sys.exit("ERROR: diagnostics already applied; no changes made")
 
 changes = [
-    ('#include "smw_spc_player.h"', '#include "smw_spc_player.h"\n#include "r36s_diag.h"\n#include "r36s_quit_menu.h"\n#include "r36s_video.h"\n#include "r36s_gles2.h"'),
+    ('#include "smw_spc_player.h"', '#include "smw_spc_player.h"\n#include "r36s_diag.h"\n#include "r36s_quit_menu.h"\n#include "r36s_video.h"\n#include "r36s_gles2.h"\n#include "r36s_wide_scene.h"'),
     ('void NORETURN Die(const char *error) {\n',
      'void NORETURN Die(const char *error) {\n  R36SDiag_Message("DIE", error);\n'),
     ('  ParseConfigFile(config_file);\n\n  LoadAssets();',
@@ -91,6 +91,14 @@ changes = [
      '      R36SDiag_Message("CONTROLLER_MAPPING", mapping ? mapping : "SDL mapping unavailable");\n'
      '      if (mapping) SDL_free(mapping);\n'
      '    }'),
+    ('  uint8 *ppu_pixels = g_other_image ? g_my_pixels : g_pixels;\n'
+     '  for (size_t y = 0, y_end = g_snes_height; y < y_end; y++)\n'
+     '    memcpy((uint8 *)pixel_buffer + y * pitch, ppu_pixels + y * 256 * 4, 256 * 4);',
+     '  uint8 *ppu_pixels = g_other_image ? g_my_pixels : g_pixels;\n'
+     '  R36SWideScene_Compose(pixel_buffer, (int)pitch, g_snes_width, g_snes_height,\n'
+     '                        ppu_pixels, 256 * 4);'),
+    ('  g_snes_width = (g_config.extended_aspect_ratio * 2 + 256);',
+     '  g_snes_width = r36s_viewport_16_9 ? 342 : 256;'),
     ('  g_renderer_funcs.EndDraw();',
      '  R36SQuitMenu_Draw(pixel_buffer, pitch, g_snes_width * render_scale,\n'
      '                    g_snes_height * render_scale, render_scale);\n'
@@ -157,7 +165,7 @@ for old, new in changes:
         sys.exit(f"ERROR: upstream anchor count {count}, expected 1: {old[:100]!r}; NOT MODIFIED")
     source = source.replace(old, new, 1)
 
-for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h", "r36s_video.c", "r36s_video.h", "r36s_gles2.c", "r36s_gles2.h"):
+for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h", "r36s_video.c", "r36s_video.h", "r36s_gles2.c", "r36s_gles2.h", "r36s_wide_scene.c", "r36s_wide_scene.h"):
     src = BASE / "overlay/src" / name
     if not src.is_file():
         sys.exit(f"ERROR: overlay file not found: {src}")
@@ -166,7 +174,7 @@ if (repo / "src/main.c.before-r36s-debug").exists():
 
 shutil.copy2(main, repo / "src/main.c.before-r36s-debug")
 main.write_text(source, encoding="utf-8", newline="\n")
-for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h", "r36s_video.c", "r36s_video.h", "r36s_gles2.c", "r36s_gles2.h"):
+for name in ("r36s_diag.c", "r36s_diag.h", "r36s_quit_menu.c", "r36s_quit_menu.h", "r36s_video.c", "r36s_video.h", "r36s_gles2.c", "r36s_gles2.h", "r36s_wide_scene.c", "r36s_wide_scene.h"):
     shutil.copy2(BASE / "overlay/src" / name, repo / "src" / name)
 
 # Add the experimental renderer selection only to the transient build workspace.
