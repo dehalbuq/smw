@@ -74,11 +74,12 @@ nao serao executados pelo port C. Para sprite-swap futuro, sprites de
 ROM podem ser compatíveis quando extraidos, mas alterações ASM não são.
 
 Fluxo de teste **local**, com ROM de SMW US legalmente adquirida:
-1. Aplicar o IPS a copia da ROM compativel, respeitando cabecalho 512.
-2. Executar `python3 assets/restool.py -r ROM_PATCHED.smc -f --no-include-rom`.
-3. Testar o novo `smw_assets.dat` separado dos assets/saves originais.
-4. Verificar titulo, caixas de mensagem, nomes, sprites/tiles e fases.
-5. Se falhar o extrator, o IPS depende de layout/ASM que exige
+1. Inspecionar `python3 tools/prepare_ips_smw.py --ips "Super Mario World (PT-BR).ips" --inspect`.
+2. Aplicar a copia `python3 tools/prepare_ips_smw.py --ips "Super Mario World (PT-BR).ips" --rom smw.sfc --output smw-ptbr.smc --ips-headered`.
+3. Executar `python3 assets/restool.py -r smw-ptbr.smc -f --no-include-rom`.
+4. Testar o novo `smw_assets.dat` separado dos assets/saves originais.
+5. Verificar titulo, caixas de mensagem, nomes, sprites/tiles e fases.
+6. Se falhar o extrator, o IPS depende de layout/ASM que exige
    adaptacao no motor C ou um mapeamento de dados.
 
 **Atencao:** o IPS nao informa hash nem revisao da ROM original.
