@@ -178,24 +178,24 @@ c = config_c.read_text(encoding="utf-8")
 h_anchor = '  kOutputMethod_OpenGL,'
 if h.count(h_anchor) != 1:
     sys.exit("ERROR: config.h OpenGL enum anchor not found")
-h = h.replace(h_anchor, h_anchor + '\\n  kOutputMethod_R36S_GLES2,', 1)
+h = h.replace(h_anchor, h_anchor + '\n  kOutputMethod_R36S_GLES2,', 1)
 c_includes = '#include "config.h"'
 if c.count(c_includes) != 1:
     sys.exit("ERROR: config.c include anchor not found")
-c = c.replace(c_includes, c_includes + '\\n#include "r36s_video.h"', 1)
+c = c.replace(c_includes, c_includes + '\n#include "r36s_video.h"', 1)
 c_anchor = '    } else if (StringEqualsNoCase(key, "IgnoreAspectRatio")) {'
 if c.count(c_anchor) != 1:
     sys.exit("ERROR: config.c viewport anchor not found")
 c = c.replace(c_anchor,
-    '    } else if (StringEqualsNoCase(key, "ViewportMode")) {\\n'
-    '      return R36SVideo_ParseViewport(value);\\n' + c_anchor, 1)
+    '    } else if (StringEqualsNoCase(key, "ViewportMode")) {\n'
+    '      return R36SVideo_ParseViewport(value);\n' + c_anchor, 1)
 c_output = 'StringEqualsNoCase(value, "OpenGL") ? kOutputMethod_OpenGL : kOutputMethod_SDL;'
 if c.count(c_output) != 1:
     sys.exit("ERROR: config.c output selector anchor not found")
 c = c.replace(c_output,
-    'StringEqualsNoCase(value, "OpenGL") ? kOutputMethod_OpenGL :\\n'
+    'StringEqualsNoCase(value, "OpenGL") ? kOutputMethod_OpenGL :\n'
     '                               StringEqualsNoCase(value, "OpenGLES2") ? kOutputMethod_R36S_GLES2 : kOutputMethod_SDL;', 1)
-config_h.write_text(h, encoding="utf-8", newline="\\n")
-config_c.write_text(c, encoding="utf-8", newline="\\n")
+config_h.write_text(h, encoding="utf-8", newline="\n")
+config_c.write_text(c, encoding="utf-8", newline="\n")
 
 print("R36S instrumentation applied to build workspace (not tracked in git)")
