@@ -2,6 +2,18 @@
 
 ## Status e referencia
 
+### Licenciamento do codigo de referencia
+
+O arquivo `LICENSE` do repositorio `mstan/SuperMarioWorldRecomp`
+declara **PolyForm Noncommercial License 1.0.0**. A licenca de um
+manifesto de mod nao substitui automaticamente a licenca dos arquivos
+de renderizacao do repositorio. Esta etapa NAO copia os arquivos
+`smw_renderer.c` / `smw_renderer_hooks.c` para o nosso fork.
+Antes de distribuir uma incorporacao direta, analisar os termos
+e obter autorizacao apropriada quando necessario. O design do ramo
+visa ser independente e manter o codigo original do snesrev intacto.
+
+
 Fonte estudada: https://github.com/mstan/SuperMarioWorldRecomp
 - `docs/adaptive-renderer.md`: host renderer com cena nativa 256x224 e viewport amplo.
 - `src/smw_renderer.c`: raster VRAM/OAM e compositor fora da janela original.
