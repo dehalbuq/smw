@@ -6,7 +6,7 @@
 
 static uint16 s_previous_asset = 0xffff;
 static uint16 s_pipe_x,s_pipe_y,s_cam1x,s_cam1y,s_cam2x,s_cam2y;
-static uint8 s_origin_screen;
+static uint8 s_origin_screen,s_invalid_exit_screen;
 static int s_pipe_snapshot_valid,s_recovery_pending;
 
 /* Called before LoadLevel alters player/camera coordinates. */
@@ -23,6 +23,11 @@ void R36SVD1_OnLoadStart(void) {
                                                      : (uint8)(player_xpos >> 8);
     s_pipe_snapshot_valid = 1;
   }
+  if (ow_level_number_lo == 0x3e && counter_sublevels_entered == 2 &&
+      s_previous_asset == 0x1ef) {
+    s_invalid_exit_screen=(misc_level_layout_flags & 1) ?
+        (uint8)(player_ypos >> 8) : (uint8)(player_xpos >> 8);
+  }
 }
 
 /* The documented Vanilla Dome 1 main and second areas are 11A/1EF.
@@ -37,18 +42,18 @@ void R36SVD1_OnResolveLevel(uint16 *asset) {
       s_previous_asset != 0x1ef || counter_sublevels_entered != 2 ||
       *asset != 0x100 || flag_active_bonus_game != 0)
     return;
-  int screen = (misc_level_layout_flags & 1) ? player_ypos >> 8 : player_xpos >> 8;
+  int screen = s_invalid_exit_screen;
   int prev = screen ? screen-1 : screen;
   int next = screen < 31 ? screen+1 : screen;
   char message[330];
   snprintf(message,sizeof(message),
            "Vanilla Dome 1 invalid pipe: source=1ef dest=100 screen=%d "
            "exit[prev=%d]=%02x exit[cur=%d]=%02x exit[next=%d]=%02x "
-           "props[cur]=%02x snapshot_valid=%d",
+           "props[cur]=%02x snapshot_valid=%d orig_screen=%u",
            screen,prev,misc_subscreen_exit_entrance_number_lo[prev & 31],
            screen,misc_subscreen_exit_entrance_number_lo[screen & 31],
            next,misc_subscreen_exit_entrance_number_lo[next & 31],
-           misc_subscreen_exit_properties[screen & 31],s_pipe_snapshot_valid);
+           misc_subscreen_exit_properties[screen & 31],s_pipe_snapshot_valid,s_origin_screen);
   R36SDiag_Message("VD1_INVALID_EXIT",message);
 
   const char *opt=getenv("SMW_R36S_VD1_PIPE_FIX");
