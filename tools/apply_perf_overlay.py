@@ -47,7 +47,35 @@ end = s.find('\n  }\n\n  if (g_config.autosave)', start)
 if start < 0 or end < 0:
     raise RuntimeError('stock 17/17/16 ms frame-pacing anchor missing')
 s = s[:start] + '    R36SFast_Pace(!g_snes->disableRender && !g_config.disable_frame_delay);\n' + s[end:]
+# The performance fork is native-only; do not mislabel its startup as
+# "ROM comparison" just because an assets file contains the vanilla ROM.
+s = patch(s,
+          '"Starting with ROM comparison"',
+          '"Running native C engine (comparison disabled)"',
+          'native-startup-log')
 p.write_text(s, encoding='utf-8', newline='\n')
+
+# The overworld level id stays unchanged across pipe/sublevel transitions:
+# log the *actual* level asset index before level loading.
+pl=repo/'src/smw_05.c'
+src=pl.read_text()
+src=patch(src, '#include "variables.h"',
+          '#include "variables.h"\n#include "r36s_diag.h"\n#include <stdio.h>',
+          'level-loader-includes')
+src=patch(src,
+          '  ptr_layer1_data = kLevelData_Layer1(r14w).ptr;',
+          """  {
+    char info[240];
+    snprintf(info, sizeof(info),
+             "level_asset=%03x overworld=%02x sublevels=%u bonus=%u "
+             "secondary=%u entrance=%u player=(%u,%u)",
+             r14w, ow_level_number_lo, counter_sublevels_entered,
+             flag_active_bonus_game, flag_use_secondary_entrance,
+             misc_level_header_entrance_settings, player_xpos, player_ypos);
+    R36SDiag_Message("LEVEL_ASSET", info);
+  }
+  ptr_layer1_data = kLevelData_Layer1(r14w).ptr;""", 'level-asset-index')
+pl.write_text(src, encoding='utf-8', newline='\n')
 
 ph=repo/'src/config.h'
 ch=ph.read_text()
