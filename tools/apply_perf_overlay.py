@@ -66,9 +66,8 @@ src=patch(src, '  uint8 r2 = 0;  // todo: what is R2 here?',
           '  uint8 r2 = 0;  // todo: what is R2 here?\n'
           '  R36SVD1_OnLoadStart();', 'vd1-enter')
 src=patch(src,
-          '    if (flag_use_secondary_entrance) {\\n      uint16 j = r14w;'.replace('\\n','\\n'),
-          '    R36SVD1_FixSecondaryEntrance(&r14w, v0);\\n'
-          '    if (flag_use_secondary_entrance) {\\n      uint16 j = r14w;',
+          "    if (flag_use_secondary_entrance) {\n      uint16 j = r14w;",
+          "    R36SVD1_FixSecondaryEntrance(&r14w, v0);\n    if (flag_use_secondary_entrance) {\n      uint16 j = r14w;",
           'vd1-select-original-secondary')
 src=patch(src,
           '  ptr_layer1_data = kLevelData_Layer1(r14w).ptr;',
