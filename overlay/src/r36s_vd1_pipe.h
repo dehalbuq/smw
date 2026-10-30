@@ -4,6 +4,10 @@
 /* Narrowly scoped, reversible recovery for the 1EF -> 100 pipe seen
  * in Vanilla Dome 1 on the R36S. No impact on normal 100-star bonuses. */
 void R36SVD1_OnLoadStart(void);
+/* Before the stock secondary-entrance table lookup, replace only the
+   invalid Vanilla Dome 1 exit index with an unambiguous original-ROM
+   secondary entry leading back to level 11A. */
+void R36SVD1_FixSecondaryEntrance(uint16 *entry, uint8 exit_screen);
 void R36SVD1_OnResolveLevel(uint16 *asset);
 void R36SVD1_AfterLoad(uint16 asset);
 void R36SVD1_OnLoaded(uint16 asset);
