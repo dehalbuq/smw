@@ -1,4 +1,5 @@
 #include "r36s_vd1_pipe.h"
+#include "smw_rtl.h"
 #include "variables.h"
 #include "r36s_diag.h"
 #include <stdio.h>
