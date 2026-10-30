@@ -23,8 +23,9 @@ Branch independente de `main`: `feature/r36s-performance-43-pixelperfect`.
   de divergencias; mantenha a build debug antiga para reportar bugs.
 - **Cortex-A35** `-O3 -flto -fno-strict-aliasing -fwrapv`, secao GC.
   Sem `-ffast-math`, evitando mudancas arriscadas de semantica.
-- **AudioSamples=512** a 32000Hz (~16ms de buffer SDL nominal).
-  AudioSamples=1024 pode ser mais confiavel em firmwares que estalam.
+- **AudioSamples=1024** a 32000Hz (~32ms nominal). Nos logs do R36S,
+  512 amostras causaram ALSA underruns; se o firmware for estavel,
+  512 pode ser testado em busca de menor latencia, sabendo do risco de estalos.
 - SELECT/START continua preservado, assim como saves/snapshots.
 
 ## Configuracao
@@ -45,7 +46,7 @@ LinearFiltering = 0
 
 [Sound]
 AudioFreq = 32000
-AudioSamples = 512
+AudioSamples = 1024
 ```
 
 Use `OutputMethod = SDL-Software` para comparar CPU e GPU; o launcher
@@ -94,3 +95,23 @@ input latency. Comparar dois perfis `VSync=1` vs `VSync=0`, observar
 tearing, verificar `[PERF] avg_fps`, controle/saida SELECT, som e saves.
 Testar ambos `OpenGLES2` e `SDL-Software`, sem trocar assets entre
 versions de forma irreversivel.
+
+## Investigação de sala bônus inacessível (30/10/2026)
+
+Log enviado: `run-20250904-003127.log`. Próximo ao quadro **25351**, após
+uma transição `0f → 10 → 11 → 12 → 13 → 14`, o Mario reapareceu em
+`(16,0)` e depois permaneceu na sala; quadros 25440–26880 mostram saltos
+com Y até próximo de `0xffdd` (posição negativa assinada).
+O campo `level=3e` era o número da fase do overworld, que não muda
+necessariamente ao carregar salas bônus/portas/canos.
+
+Não há prova suficiente para alterar coordenadas de blocos ou colisão.
+Foi adicionada instrumentação de **somente leitura**:
+- `[LEVEL_ASSET]`: índice real do nível carregado, incluindo sublevel
+- `[SUBLEVEL]`: número de subníveis entrados, bônus, câmera, posição
+- `[BONUS_SPRITES]`: coordenadas dos objetos sprite `0x82` (roleta de 1-UP)
+
+Reproduzir com a mesma versão/mesmo `smw_assets.dat`, entrar novamente
+na sala e recolher os novos logs, se possível com foto do defeito.
+As métricas vistas foram ~58.3–58.6 FPS com VSync=1 e múltiplos
+`ALSA underrun`, razão para priorizar estabilidade do áudio.
