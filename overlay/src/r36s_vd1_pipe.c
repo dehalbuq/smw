@@ -2,6 +2,7 @@
 #include "smw_rtl.h"
 #include "variables.h"
 #include "r36s_diag.h"
+#include "assets/smw_assets.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -28,6 +29,61 @@ void R36SVD1_OnLoadStart(void) {
       s_previous_asset == 0x1ef) {
     s_invalid_exit_screen=(misc_level_layout_flags & 1) ?
         (uint8)(player_ypos >> 8) : (uint8)(player_xpos >> 8);
+  }
+}
+
+/* Recover Vanilla Dome 1's original secondary entrance whenever the
+ * 1EF pipe's entry index was lost and incorrectly became 0x100.
+ *
+ * Unlike restoring approximate coordinates, this finds the original
+ * entrance that points into the parent 0x11A room. The stock loader
+ * retains responsibility for Y/X spawn, camera, entrance direction.
+ *
+ * To prevent unintended routes, only apply if exactly ONE candidate
+ * returns to 11A beyond the opening 8 screens. */
+void R36SVD1_FixSecondaryEntrance(uint16 *entry, uint8 exit_screen) {
+  if (!entry || ow_level_number_lo != 0x3e ||
+      s_previous_asset != 0x1ef || counter_sublevels_entered != 2 ||
+      exit_screen != 5 || !flag_use_secondary_entrance ||
+      flag_active_bonus_game || *entry != 0x100)
+    return;
+
+  const char *opt = getenv("SMW_R36S_VD1_PIPE_FIX");
+  if (opt && opt[0] == '0') return;
+
+  unsigned entries = kLevelInfo_05F800_SIZE;
+  if (entries > kLevelInfo_05FC00_SIZE)
+    entries = kLevelInfo_05FC00_SIZE;
+  if (entries > 512)
+    entries = 512;
+
+  int candidate = -1;
+  int count = 0;
+  for (unsigned j = 0x100; j < entries; ++j) {
+    if (kLevelInfo_05F800[j] == 0x1a &&
+        (kLevelInfo_05FC00[j] & 31) >= 8) {
+      candidate = (int)j;
+      ++count;
+    }
+  }
+
+  char msg[192];
+  if (count == 1) {
+    *entry = (uint16)candidate;
+    snprintf(msg, sizeof(msg),
+             "Vanilla Dome 1 secondary entrance corrected: "
+             "1EF screen=%u slot=%03x -> 11A screen=%u",
+             (unsigned)exit_screen, (unsigned)candidate,
+             (unsigned)(kLevelInfo_05FC00[candidate] & 31));
+    R36SDiag_Message("VD1_SECONDARY_FIX", msg);
+    s_recovery_pending = 0; /* Stock loader supplies correct spawn. */
+  } else {
+    snprintf(msg, sizeof(msg),
+             "Vanilla Dome 1 missing secondary entrance: "
+             "1EF screen=%u, 11A candidates=%d; "
+             "retaining reversible parent-room recovery",
+             (unsigned)exit_screen, count);
+    R36SDiag_Message("VD1_SECONDARY_SCAN", msg);
   }
 }
 
