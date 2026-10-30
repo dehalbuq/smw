@@ -125,13 +125,22 @@ Y de 240 a 320, mas Mario fica no Y 160 e a câmera no Y zero.
 A tela não está simplesmente fora de escala: é a sala incorreta.
 
 **Solução temporária e reversível apenas nesta branch:**
-A nova rotina `r36s_vd1_pipe.c` memoriza a posição e a câmera do
-Mario ao passar de `11A` a `1EF`. Caso a próxima transição nessa
-sequência tente abrir `100` sem bônus ativo, o port retorna para
-`11A` perto do cano anterior (64 pixels à direita, 16 acima).
-É uma **recuperação experimental**, não o destino oficial verificado
-na ROM: pode reaparecer num local inapropriado ou precisar voltar
-mais cedo na fase. Não toca em fases nem bônus legítimos restantes.
+A nova rotina `r36s_vd1_pipe.c` primeiro tenta recuperar a entrada
+secundaria correta a partir da **tabela de entradas dos próprios
+assets da ROM**, procurando uma unica entrada para `11A`, acima
+do oitavo screen (continuação da primeira area da fase). Quando ha
+uma correspondencia unica, deixa o carregador original definir
+a posição inicial do Mario e da câmera, sem inventar coordenadas.
+Novo log: `[VD1_SECONDARY_FIX]`.
+
+Se a tabela não contiver uma entrada inequívoca, o fallback
+experimental memoriza a posição e câmera de Mario na transicao
+`11A → 1EF` e retorna para `11A` perto do cano anterior
+(64 pixels à direita, 16 acima), com log
+`[VD1_SECONDARY_SCAN]` seguido de `[VD1_PIPE_RECOVERY]`.
+Esse fallback não é o destino oficial verificado e pode reaparecer
+num local inapropriado. Não modifica a geometria nem a colisão
+da sala bônus legitima.
 
 Ligue/desligue com a variável de ambiente no script launcher:
 `SMW_R36S_VD1_PIPE_FIX=1` (ativado por padrão) ou
