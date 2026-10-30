@@ -30,6 +30,7 @@ fi
 printf 'binary info:\n'; file "$BINARY" 2>&1 || true
 printf 'binary dependencies:\n'; ldd "$BINARY" 2>&1 || true
 printf 'sdl_env: video=%s audio=%s\n' "${SDL_VIDEODRIVER:-system-default}" "${SDL_AUDIODRIVER:-system-default}"
+printf 'VD1_PIPE_FIX=%s (1=experimental route recovery; 0=disabled)\n' "${SMW_R36S_VD1_PIPE_FIX:-1}"
 if [ ! -x "$BINARY" ]; then echo 'ERROR: smw executable missing or not executable'; exit 126; fi
 if [ ! -s smw_assets.dat ]; then echo 'ERROR: smw_assets.dat missing'; exit 2; fi
 if [ -d libs ]; then export LD_LIBRARY_PATH="$PWD/libs:${LD_LIBRARY_PATH:-}"; fi
