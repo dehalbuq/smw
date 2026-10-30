@@ -115,3 +115,33 @@ Reproduzir com a mesma versão/mesmo `smw_assets.dat`, entrar novamente
 na sala e recolher os novos logs, se possível com foto do defeito.
 As métricas vistas foram ~58.3–58.6 FPS com VSync=1 e múltiplos
 `ALSA underrun`, razão para priorizar estabilidade do áudio.
+
+## Recuperação experimental do cano — Vanilla Dome 1 (30/10/2026)
+
+A nova execução com `[LEVEL_ASSET]` identificou:
+`11A` → `1EF` (correto) → `100` (indevido em cano normal).
+Na sala `100`, os sprites `0x82` da roleta aparecem no mundo com
+Y de 240 a 320, mas Mario fica no Y 160 e a câmera no Y zero.
+A tela não está simplesmente fora de escala: é a sala incorreta.
+
+**Solução temporária e reversível apenas nesta branch:**
+A nova rotina `r36s_vd1_pipe.c` memoriza a posição e a câmera do
+Mario ao passar de `11A` a `1EF`. Caso a próxima transição nessa
+sequência tente abrir `100` sem bônus ativo, o port retorna para
+`11A` perto do cano anterior (64 pixels à direita, 16 acima).
+É uma **recuperação experimental**, não o destino oficial verificado
+na ROM: pode reaparecer num local inapropriado ou precisar voltar
+mais cedo na fase. Não toca em fases nem bônus legítimos restantes.
+
+Ligue/desligue com a variável de ambiente no script launcher:
+`SMW_R36S_VD1_PIPE_FIX=1` (ativado por padrão) ou
+`SMW_R36S_VD1_PIPE_FIX=0` (comportamento anterior, para comparação).
+Novos logs `[VD1_INVALID_EXIT]` registram destino e tabela de
+saídas dos screens anterior, atual e posterior, e
+`[VD1_PIPE_RECOVERY]` documenta as posições recuperadas.
+
+**Para corrigir a rota definitivamente, precisamos extrair o destino
+real da entrada de cano a partir do `smw_assets.dat` de teste.**
+Os símbolos `.debug` não contêm os recursos da ROM, portanto
+não permitem identificar as saídas da fase gravadas no pacote.
+Não mesclar sem validar o retorno a `11A` em hardware.
