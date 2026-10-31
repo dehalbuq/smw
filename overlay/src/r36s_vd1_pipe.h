@@ -1,8 +1,9 @@
 #ifndef R36S_VD1_PIPE_H
 #define R36S_VD1_PIPE_H
 #include "types.h"
-/* Narrowly scoped, reversible recovery for the 1EF -> 100 pipe seen
- * in Vanilla Dome 1 on the R36S. No impact on normal 100-star bonuses. */
+/* Experimental 1EF->100 Vanilla Dome 1 pipe recovery. First seek a valid
+ * original secondary entrance; otherwise restart at the stock 11A entrance.
+ * Never fabricate Mario spawn coordinates. Disable with the launcher flag. */
 void R36SVD1_OnLoadStart(void);
 /* Before the stock secondary-entrance table lookup, replace only the
    invalid Vanilla Dome 1 exit index with an unambiguous original-ROM
