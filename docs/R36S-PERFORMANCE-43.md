@@ -116,41 +116,43 @@ na sala e recolher os novos logs, se possível com foto do defeito.
 As métricas vistas foram ~58.3–58.6 FPS com VSync=1 e múltiplos
 `ALSA underrun`, razão para priorizar estabilidade do áudio.
 
-## Recuperação experimental do cano — Vanilla Dome 1 (30/10/2026)
+## Vanilla Dome 1, cano da segunda seção — correção revisada (30/10/2026)
 
-A nova execução com `[LEVEL_ASSET]` identificou:
-`11A` → `1EF` (correto) → `100` (indevido em cano normal).
-Na sala `100`, os sprites `0x82` da roleta aparecem no mundo com
-Y de 240 a 320, mas Mario fica no Y 160 e a câmera no Y zero.
-A tela não está simplesmente fora de escala: é a sala incorreta.
+Os logs `r36s-diagnostic(8).log` e `run-20250904-010358.log`
+provaram que a versão de recuperação anterior **causava morte**:
+`1EF → 11A`, Mario colocado artificialmente em
+`(2223,334)` com câmera `(2117,192)`, seguido de queda para
+`(2223,1102)`. Não usar esse procedimento.
 
-**Solução temporária e reversível apenas nesta branch:**
-A nova rotina `r36s_vd1_pipe.c` primeiro tenta recuperar a entrada
-secundaria correta a partir da **tabela de entradas dos próprios
-assets da ROM**, procurando uma unica entrada para `11A`, acima
-do oitavo screen (continuação da primeira area da fase). Quando ha
-uma correspondencia unica, deixa o carregador original definir
-a posição inicial do Mario e da câmera, sem inventar coordenadas.
-Novo log: `[VD1_SECONDARY_FIX]`.
+A localização oficial após o corredor da lava é a plataforma com o
+**Midway Gate**, e não o começo da fase: ver
+https://www.mariowiki.com/Vanilla_Dome_1 .
 
-Se a tabela não contiver uma entrada inequívoca, o fallback
-experimental memoriza a posição e câmera de Mario na transicao
-`11A → 1EF` e retorna para `11A` perto do cano anterior
-(64 pixels à direita, 16 acima), com log
-`[VD1_SECONDARY_SCAN]` seguido de `[VD1_PIPE_RECOVERY]`.
-Esse fallback não é o destino oficial verificado e pode reaparecer
-num local inapropriado. Não modifica a geometria nem a colisão
-da sala bônus legitima.
+**Correção imediata / comportamento conservador:**
+- Removidos todos os writes de `player_xpos/ypos` e câmera da
+  recuperação posterior a `LoadLevel`. Não fazemos mais `+64` ou
+  `-16` nem escolhemos um pixel hipoteticamente seguro.
+- Corrigido `R36SVD1_FixSecondaryEntrance` para investigar o
+  verdadeiro índice `0x1EF` **antes** de ele se transformar em
+  `0x100` durante a consulta à tabela de entradas secundárias.
+  Só aceita uma única entrada para `11A` além do oitavo screen.
+- Sem correspondência única, retoma a **entrada nativa do nível
+  11A** usando os cálculos originais de `LoadLevel`.
+  Esse fallback REINICIA a primeira área: impede o warp a `100`
+  e a posição improvisada, mas **não conclui o caminho correto do
+  cano**. Log `[VD1_SAFE_RESTART]`.
+- Continua reversível por
+  `SMW_R36S_VD1_PIPE_FIX=0`. A branch `main` não é alterada.
 
-Ligue/desligue com a variável de ambiente no script launcher:
-`SMW_R36S_VD1_PIPE_FIX=1` (ativado por padrão) ou
-`SMW_R36S_VD1_PIPE_FIX=0` (comportamento anterior, para comparação).
-Novos logs `[VD1_INVALID_EXIT]` registram destino e tabela de
-saídas dos screens anterior, atual e posterior, e
-`[VD1_PIPE_RECOVERY]` documenta as posições recuperadas.
+A determinação definitiva da entrada para o Midway Gate requer
+investigar os dados reais de saída e geometria que acompanham
+`smw_assets.dat` (na ROM original há estado de entradas secundárias
+e posições da câmera). O usuário pode enviar uma cópia do arquivo
+`smw_assets.dat` de sua instalação (aprox. 878 KB) para validar a
+entrada/saída correta; os logs e símbolos .debug não contêm a
+geometria dos níveis.
 
-**Para corrigir a rota definitivamente, precisamos extrair o destino
-real da entrada de cano a partir do `smw_assets.dat` de teste.**
-Os símbolos `.debug` não contêm os recursos da ROM, portanto
-não permitem identificar as saídas da fase gravadas no pacote.
-Não mesclar sem validar o retorno a `11A` em hardware.
+**Validação no R36S:** se registrar `VD1_SECONDARY_FIX`, confirmar
+visualmente que chega ao checkpoint e não atravessa blocos.
+Se registrar `VD1_SAFE_RESTART`, sabemos que só foi evitada uma
+posição insegura: não declarar bug resolvido.
