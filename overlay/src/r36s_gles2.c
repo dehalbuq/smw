@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef GL_BGRA_EXT
+#define GL_BGRA_EXT 0x80E1
+#endif
 
 static SDL_Window *s_window;
 static SDL_GLContext s_context;
@@ -15,6 +18,7 @@ static GLuint s_program,s_vbo,s_texture,s_background;
 static GLint s_uniform;
 static unsigned char *s_argb,*s_rgba;
 static size_t s_capacity;
+static int s_use_bgra;
 static int s_width,s_height,s_texture_w,s_texture_h;
 
 static GLuint compile_shader(GLenum kind,const char *source) {
@@ -38,8 +42,12 @@ static bool initialize(SDL_Window *window) {
     return false;
   }
   int swap_status=SDL_GL_SetSwapInterval(r36s_vsync ? 1 : 0);
+#ifndef R36S_RELEASE
   fprintf(stderr,"[GLES2] requested_vsync=%d swap_interval_result=%d error=%s\n",
           r36s_vsync,swap_status,swap_status==0 ? "none" : SDL_GetError());
+#else
+  (void)swap_status;
+#endif
   const char *vert=
     "attribute vec2 a_position;\n"
     "attribute vec2 a_uv;\n"
@@ -49,7 +57,7 @@ static bool initialize(SDL_Window *window) {
     "precision mediump float;\n"
     "varying vec2 v_uv;\n"
     "uniform sampler2D u_texture;\n"
-    "void main(){ gl_FragColor=texture2D(u_texture,v_uv); }\n";
+    "void main(){ gl_FragColor=vec4(texture2D(u_texture,v_uv).rgb,1.0); }\n";
   GLuint vs=compile_shader(GL_VERTEX_SHADER,vert);
   GLuint fs=compile_shader(GL_FRAGMENT_SHADER,frag);
   if (!vs || !fs) { if(vs)glDeleteShader(vs); if(fs)glDeleteShader(fs);return false; }
@@ -99,7 +107,15 @@ static bool initialize(SDL_Window *window) {
     }
     R36SBackdrop_FreePixels();
   }
+#ifdef R36S_RELEASE
+  const char *ext=(const char *)glGetString(GL_EXTENSIONS);
+  /* On Mali GLES drivers accepting EXT BGRA uploads avoids a full per-frame
+   * CPU channel-swap of the 256x224 framebuffer (~13 MB/s traffic saved).
+   * Any unsupported implementation automatically uses the original RGBA path. */
+  s_use_bgra = ext && strstr(ext, "GL_EXT_texture_format_BGRA8888") != NULL;
+#else
   fprintf(stderr,"[GLES2] renderer initialized: %s\n",glGetString(GL_VERSION));
+#endif
   return true;
 }
 static void destroy(void) {
@@ -109,7 +125,7 @@ static void destroy(void) {
   if(s_program) glDeleteProgram(s_program);
   if(s_context) SDL_GL_DeleteContext(s_context);
   free(s_argb);free(s_rgba);
-  s_context=NULL;s_argb=s_rgba=NULL;s_capacity=0;s_texture=s_program=s_vbo=s_background=0;
+  s_context=NULL;s_argb=s_rgba=NULL;s_capacity=0;s_texture=s_program=s_vbo=s_background=0;s_use_bgra=0;
 }
 static void begin_draw(int w,int h,uint8 **pixels,int *pitch) {
   s_width=w;s_height=h;
@@ -129,19 +145,36 @@ static void begin_draw(int w,int h,uint8 **pixels,int *pitch) {
 }
 static void end_draw(void) {
   if(!s_argb||!s_rgba||s_width<=0||s_height<=0)return;
-  /* SDL PIXELFORMAT_ARGB8888 is B,G,R,A in little-endian memory. ES2 must
-     accept GL_RGBA; convert explicitly, not via desktop-only GL_BGRA. */
-  for(int i=0,n=s_width*s_height;i<n;i++) {
-    s_rgba[4*i+0]=s_argb[4*i+2];
-    s_rgba[4*i+1]=s_argb[4*i+1];
-    s_rgba[4*i+2]=s_argb[4*i+0];
-    s_rgba[4*i+3]=255;
+  /* SDL ARGB8888 is byte-ordered BGRA on little-endian RK3326.
+   * Optional GPU-native BGRA uploads remove the per-frame conversion.
+   * Use the same proven RGBA conversion if this extension is unavailable. */
+  const unsigned char *pixels=s_argb;
+  GLenum format=GL_BGRA_EXT;
+  if(!s_use_bgra) {
+    for(int i=0,n=s_width*s_height;i<n;i++) {
+      s_rgba[4*i+0]=s_argb[4*i+2];
+      s_rgba[4*i+1]=s_argb[4*i+1];
+      s_rgba[4*i+2]=s_argb[4*i+0];
+      s_rgba[4*i+3]=255;
+    }
+    pixels=s_rgba;format=GL_RGBA;
   }
   glBindTexture(GL_TEXTURE_2D,s_texture);
   if(s_texture_w!=s_width || s_texture_h!=s_height) {
+    glTexImage2D(GL_TEXTURE_2D,0,format,s_width,s_height,0,format,GL_UNSIGNED_BYTE,pixels);
+  } else glTexSubImage2D(GL_TEXTURE_2D,0,0,0,s_width,s_height,format,GL_UNSIGNED_BYTE,pixels);
+  if(s_use_bgra && glGetError()!=GL_NO_ERROR) {
+    /* Defensive fallback on drivers that advertise BGRA incorrectly. */
+    s_use_bgra=0;
+    for(int i=0,n=s_width*s_height;i<n;i++) {
+      s_rgba[4*i+0]=s_argb[4*i+2];
+      s_rgba[4*i+1]=s_argb[4*i+1];
+      s_rgba[4*i+2]=s_argb[4*i+0];
+      s_rgba[4*i+3]=255;
+    }
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,s_width,s_height,0,GL_RGBA,GL_UNSIGNED_BYTE,s_rgba);
-    s_texture_w=s_width;s_texture_h=s_height;
-  } else glTexSubImage2D(GL_TEXTURE_2D,0,0,0,s_width,s_height,GL_RGBA,GL_UNSIGNED_BYTE,s_rgba);
+  }
+  s_texture_w=s_width;s_texture_h=s_height;
   int out_w=0,out_h=0;
   SDL_GL_GetDrawableSize(s_window,&out_w,&out_h);
   R36SRect dst;R36SFast_ContentRect(out_w,out_h,s_width,s_height,&dst);
