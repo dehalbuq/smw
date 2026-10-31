@@ -14,16 +14,43 @@ def patch(text, old, new, name):
 
 p = repo / 'src/main.c'
 s = p.read_text()
-s = patch(s, '#include "r36s_quit_menu.h"', '#include "r36s_quit_menu.h"\n#include "r36s_fast_video.h"\n#include "r36s_gles2.h"', 'header')
+s = patch(s, '#include "r36s_quit_menu.h"', '#include "r36s_quit_menu.h"\n#include "r36s_fast_video.h"\n#include "r36s_gles2.h"\n#include "r36s_backdrop.h"', 'header')
 s = patch(s, '  g_snes_width = (g_config.extended_aspect_ratio * 2 + 256);', '  g_snes_width = 256; /* R36S 4:3 native, no widescreen */', 'native-size')
+s = patch(s, 'static SDL_Texture *g_texture;', 'static SDL_Texture *g_texture;\nstatic SDL_Texture *s_backdrop_texture;', 'sdl-backdrop-global')
 s = patch(s, '  SDL_Renderer *renderer = SDL_CreateRenderer', '  SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");\n  SDL_Renderer *renderer = SDL_CreateRenderer', 'sdl-nearest')
 s = patch(s, '  if (!g_config.ignore_aspect_ratio)\n    SDL_RenderSetLogicalSize(renderer, g_snes_width, g_snes_height);', '  if (!g_config.ignore_aspect_ratio && !r36s_pixel_perfect)\n    SDL_RenderSetLogicalSize(renderer, g_snes_width, g_snes_height);', 'sdl-logical')
 s = patch(s, '  if (g_config.linear_filtering)\n    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "best");', '  /* Never use bilinear texture filtering on integer pixel art. */', 'sdl-quality')
+s = patch(s,
+    '  return true;\n}\n\nstatic void SdlRenderer_Destroy(void) {',
+    """  /* Optional background decoded exactly once; no SDL_image dependency. */
+  int bgw=0,bgh=0;
+  const unsigned char *bg=R36SBackdrop_LoadRGBA(&bgw,&bgh);
+  if(bg) {
+    SDL_Surface *sf=SDL_CreateRGBSurfaceWithFormatFrom(
+        (void*)bg,bgw,bgh,32,bgw*4,SDL_PIXELFORMAT_RGBA32);
+    if(sf) {
+      s_backdrop_texture=SDL_CreateTextureFromSurface(g_renderer,sf);
+      SDL_FreeSurface(sf);
+      if(s_backdrop_texture) SDL_SetTextureBlendMode(s_backdrop_texture, SDL_BLENDMODE_NONE);
+    }
+    if(!s_backdrop_texture)
+      fprintf(stderr,"[BACKDROP] SDL texture creation failed: %s\\n",SDL_GetError());
+    R36SBackdrop_FreePixels();
+  }
+  return true;
+}
+
+static void SdlRenderer_Destroy(void) {
+  SDL_DestroyTexture(s_backdrop_texture);
+  s_backdrop_texture=NULL;""",
+    'sdl-load-backdrop')
 s = patch(s, '  SDL_RenderClear(g_renderer);\n  SDL_RenderCopy(g_renderer, g_texture, &g_sdl_renderer_rect, NULL);', """  SDL_SetRenderDrawColor(g_renderer, 0, 0, 0, 255);
   SDL_RenderClear(g_renderer);
   int sw=0,sh=0; SDL_GetRendererOutputSize(g_renderer,&sw,&sh);
   R36SRect r; R36SFast_ContentRect(sw,sh,g_snes_width,g_snes_height,&r);
   SDL_Rect dst={r.x,r.y,r.w,r.h};
+  if(s_backdrop_texture)
+    SDL_RenderCopy(g_renderer,s_backdrop_texture,NULL,NULL);
   SDL_RenderCopy(g_renderer, g_texture, &g_sdl_renderer_rect, &dst);""", 'sdl-dest')
 s = patch(s, """  if (g_config.output_method == kOutputMethod_OpenGL) {
     g_win_flags |= SDL_WINDOW_OPENGL;
@@ -126,12 +153,20 @@ ch=patch(ch, '  kOutputMethod_OpenGL,', '  kOutputMethod_OpenGL,\n  kOutputMetho
 ph.write_text(ch, encoding='utf-8', newline='\n')
 pc=repo/'src/config.c'
 c=pc.read_text()
-c=patch(c, '#include "config.h"', '#include "config.h"\n#include "r36s_fast_video.h"', 'config-header')
+c=patch(c, '#include "config.h"', '#include "config.h"\n#include "r36s_fast_video.h"\n#include "r36s_backdrop.h"', 'config-header')
 c=patch(c, '    } else if (StringEqualsNoCase(key, "IgnoreAspectRatio")) {', """    } else if (StringEqualsNoCase(key, "PixelPerfect")) {
       return R36SFast_ParsePixelPerfect(value);
     } else if (StringEqualsNoCase(key, "VSync")) {
       return R36SFast_ParseVSync(value);
     } else if (StringEqualsNoCase(key, "IgnoreAspectRatio")) {""", 'config-pixelperfect')
+c=patch(c,
+        '    } else if (StringEqualsNoCase(key, "PixelPerfect")) {',
+        """    } else if (StringEqualsNoCase(key, "UseBackdrop")) {
+      return R36SBackdrop_ParseUse(value);
+    } else if (StringEqualsNoCase(key, "BackgroundImage")) {
+      return R36SBackdrop_ParseImage(value);
+    } else if (StringEqualsNoCase(key, "PixelPerfect")) {""",
+        'config-backdrop')
 c=patch(c, 'StringEqualsNoCase(value, "OpenGL") ? kOutputMethod_OpenGL : kOutputMethod_SDL;', 'StringEqualsNoCase(value, "OpenGL") ? kOutputMethod_OpenGL :\n                               StringEqualsNoCase(value, "OpenGLES2") ? kOutputMethod_R36S_GLES2 : kOutputMethod_SDL;', 'config-output')
 pc.write_text(c, encoding='utf-8', newline='\n')
 
@@ -141,6 +176,7 @@ cr=pr.read_text()
 cr=patch(cr, 'uint8 g_runmode = RM_BOTH;', 'uint8 g_runmode = RM_MINE;', 'native-engine')
 pr.write_text(cr, encoding='utf-8', newline='\n')
 for name in ('r36s_fast_video.c', 'r36s_fast_video.h', 'r36s_gles2.c', 'r36s_gles2.h',
-             'r36s_vd1_pipe.c', 'r36s_vd1_pipe.h'):
+             'r36s_vd1_pipe.c', 'r36s_vd1_pipe.h',
+             'r36s_backdrop.c', 'r36s_backdrop.h', 'stb_image.h'):
     shutil.copy2(base/'overlay/src'/name, repo/'src'/name)
 print('R36S native 4:3 performance overlay: comparison off, no widescreen')
