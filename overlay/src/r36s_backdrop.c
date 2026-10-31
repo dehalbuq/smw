@@ -33,29 +33,29 @@ const unsigned char *R36SBackdrop_LoadRGBA(int *width,int *height) {
   if (height) *height=0;
   R36SBackdrop_FreePixels();
   if (!r36s_use_backdrop) {
-    fprintf(stderr,"[BACKDROP] disabled in smw.ini\\n");
+    fprintf(stderr,"[BACKDROP] disabled in smw.ini\n");
     return NULL;
   }
   int w=0,h=0,components=0;
   if (!stbi_info(r36s_background_image,&w,&h,&components)) {
-    fprintf(stderr,"[BACKDROP] no readable PNG: %s (%s), using black borders\\n",
+    fprintf(stderr,"[BACKDROP] no readable PNG: %s (%s), using black borders\n",
             r36s_background_image,stbi_failure_reason());
     return NULL;
   }
   /* Avoid allocating unbounded memory from malformed PNGs on the R36S. */
   if (w<16 || h<16 || w>2048 || h>2048 || (long long)w*h>2400000LL) {
-    fprintf(stderr,"[BACKDROP] image dimensions rejected: %dx%d\\n",w,h);
+    fprintf(stderr,"[BACKDROP] image dimensions rejected: %dx%d\n",w,h);
     return NULL;
   }
   s_pixels=stbi_load(r36s_background_image,&w,&h,&components,4);
   if (!s_pixels) {
-    fprintf(stderr,"[BACKDROP] PNG decoding failed (%s), keeping black borders\\n",
+    fprintf(stderr,"[BACKDROP] PNG decoding failed (%s), keeping black borders\n",
             stbi_failure_reason());
     return NULL;
   }
   if(width)*width=w;
   if(height)*height=h;
-  fprintf(stderr,"[BACKDROP] image loaded=%s size=%dx%d fit=stretch pixelperfect=preserved\\n",
+  fprintf(stderr,"[BACKDROP] image loaded=%s size=%dx%d fit=stretch pixelperfect=preserved\n",
           r36s_background_image,w,h);
   return s_pixels;
 }
