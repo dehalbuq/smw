@@ -45,7 +45,7 @@ void R36SVD1_FixSecondaryEntrance(uint16 *entry, uint8 exit_screen) {
   if (!entry || ow_level_number_lo != 0x3e ||
       s_previous_asset != 0x1ef || counter_sublevels_entered != 2 ||
       exit_screen != 5 || !flag_use_secondary_entrance ||
-      flag_active_bonus_game || *entry != 0x100)
+      flag_active_bonus_game || *entry != 0x1ef)
     return;
 
   const char *opt = getenv("SMW_R36S_VD1_PIPE_FIX");
@@ -81,7 +81,7 @@ void R36SVD1_FixSecondaryEntrance(uint16 *entry, uint8 exit_screen) {
     snprintf(msg, sizeof(msg),
              "Vanilla Dome 1 missing secondary entrance: "
              "1EF screen=%u, 11A candidates=%d; "
-             "retaining reversible parent-room recovery",
+             "no verified secondary entrance; native 11A start is fallback",
              (unsigned)exit_screen, count);
     R36SDiag_Message("VD1_SECONDARY_SCAN", msg);
   }
@@ -118,40 +118,35 @@ void R36SVD1_OnResolveLevel(uint16 *asset) {
     R36SDiag_Message("VD1_PIPE_RECOVERY","disabled or missing main-pipe snapshot");
     return;
   }
-  /* Restore a known playable location of the parent level, just past
-   * the original pipe. Users can opt out with SMW_R36S_VD1_PIPE_FIX=0. */
-  *asset=0x11a;
-  flag_use_secondary_entrance=0;
-  s_recovery_pending=1;
-  R36SDiag_Message("VD1_PIPE_RECOVERY",
-                   "experimental: rerouting 1EF->100 to 11A at prior pipe+64px");
+  /* Fail safe: use the 11A native entrance initialized by the stock
+   * loader, without inventing any coordinates. This RESTARTS Vanilla
+   * Dome 1 (not the proper midlevel return) until its original pipe
+   * entrance can be recovered from the user's asset data. */
+  *asset = 0x11a;
+  flag_use_secondary_entrance = 0;
+  s_recovery_pending = 1;
+  R36SDiag_Message("VD1_SAFE_RESTART",
+                   "invalid 1EF->100 exit: load 11A native beginning; "
+                   "no coordinate edits, original continuation still unresolved");
 }
 
 void R36SVD1_AfterLoad(uint16 asset) {
   if (!s_recovery_pending)
     return;
-  s_recovery_pending=0;
-  if (asset!=0x11a) {
-    R36SDiag_Message("VD1_PIPE_RECOVERY","aborted, unexpected destination");
+  s_recovery_pending = 0;
+  if (asset != 0x11a) {
+    R36SDiag_Message("VD1_SAFE_RESTART", "aborted, unexpected level asset");
     return;
   }
-  /* Return to the original map area rather than keeping bonus 100's
-   * initialization (Mario=(16,0), camera=(0,0)). Spawn slightly above
-   * the saved floor to avoid starting embedded in a solid tile. */
-  player_xpos=(uint16)(s_pipe_x + 64);
-  player_ypos=(uint16)(s_pipe_y - 16);
-  mirror_current_layer1_xpos=(uint16)(s_cam1x + 64);
-  mirror_current_layer1_ypos=s_cam1y;
-  mirror_current_layer2_xpos=(uint16)(s_cam2x + 64);
-  mirror_current_layer2_ypos=s_cam2y;
-  misc_level_header_entrance_settings=0;
+  /* Read-only verification: stock LoadLevel handled spawn and camera.
+   * Never write Mario/PPU positions here; that killed the player in v1. */
   char message[160];
-  snprintf(message,sizeof(message),
-           "redirected to 11a player=(%u,%u) camera=(%u,%u), source=(%u,%u)",
-           (unsigned)player_xpos,(unsigned)player_ypos,
-           (unsigned)mirror_current_layer1_xpos,(unsigned)mirror_current_layer1_ypos,
-           (unsigned)s_pipe_x,(unsigned)s_pipe_y);
-  R36SDiag_Message("VD1_PIPE_RECOVERY",message);
+  snprintf(message, sizeof(message),
+           "stock start 11A player=(%u,%u) camera=(%u,%u)",
+           (unsigned)player_xpos, (unsigned)player_ypos,
+           (unsigned)mirror_current_layer1_xpos,
+           (unsigned)mirror_current_layer1_ypos);
+  R36SDiag_Message("VD1_SAFE_RESTART", message);
 }
 
 void R36SVD1_OnLoaded(uint16 asset) {
