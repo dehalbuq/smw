@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """R36S 4:3 performance overlays, only after tools/apply_overlay.py."""
-import sys, shutil
+import sys, shutil, os
 from pathlib import Path
 
 repo = Path(sys.argv[1]).resolve()
@@ -80,6 +80,13 @@ s = patch(s,
           '"Starting with ROM comparison"',
           '"Running native C engine (comparison disabled)"',
           'native-startup-log')
+if os.environ.get("R36S_RELEASE_BUILD") == "1":
+    # Always cap simulated frames at 60, regardless of DisableFrameDelay
+    # or render-skipping settings. There is no catch-up burst.
+    s = patch(s,
+              "R36SFast_Pace(!g_snes->disableRender && !g_config.disable_frame_delay);",
+              "R36SFast_Pace(true);",
+              "release-hard-60fps-cap")
 p.write_text(s, encoding='utf-8', newline='\n')
 
 # The overworld level id stays unchanged across pipe/sublevel transitions:
