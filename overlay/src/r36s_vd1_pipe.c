@@ -51,43 +51,38 @@ void R36SVD1_FixSecondaryEntrance(uint16 *entry, uint8 exit_screen) {
   const char *opt = getenv("SMW_R36S_VD1_PIPE_FIX");
   if (opt && opt[0] == '0') return;
 
-  unsigned entries = kLevelInfo_05F800_SIZE;
-  if (entries > kLevelInfo_05FC00_SIZE)
-    entries = kLevelInfo_05FC00_SIZE;
-  if (entries > 512)
-    entries = 512;
-
-  int candidate = -1;
-  int count = 0;
-  for (unsigned j = 0x100; j < entries; ++j) {
-    if (kLevelInfo_05F800[j] == 0x1a &&
-        (kLevelInfo_05FC00[j] & 31) >= 8) {
-      candidate = (int)j;
-      ++count;
-    }
-  }
-
-  char msg[192];
-  if (count == 1) {
-    *entry = (uint16)candidate;
+  /* IMPORTANT: the original ROM's secondary-entrance tables are
+   * needed in vanilla too. Old extractors mistakenly packed zero-length
+   * placeholders for all four. Do not invent or scan alternative exits:
+   * the requested index 1EF is correct, only its table data was absent. */
+  if (kLevelInfo_05F800_SIZE >= 512 &&
+      kLevelInfo_05FA00_SIZE >= 512 &&
+      kLevelInfo_05FC00_SIZE >= 512 &&
+      kLm5FE00_SIZE >= 512) {
+    char msg[192];
     snprintf(msg, sizeof(msg),
-             "Vanilla Dome 1 secondary entrance corrected: "
-             "1EF screen=%u slot=%03x -> 11A screen=%u",
-             (unsigned)exit_screen, (unsigned)candidate,
-             (unsigned)(kLevelInfo_05FC00[candidate] & 31));
-    R36SDiag_Message("VD1_SECONDARY_FIX", msg);
-    s_recovery_pending = 0; /* Stock loader supplies correct spawn. */
+             "Vanilla Dome 1: table slot=%03x -> levelLo=%02x y=%02x x=%02x entry=%02x; "
+             "using original SNES secondary loader",
+             (unsigned)*entry,
+             (unsigned)kLevelInfo_05F800[*entry],
+             (unsigned)kLevelInfo_05FA00[*entry],
+             (unsigned)kLevelInfo_05FC00[*entry],
+             (unsigned)kLm5FE00[*entry]);
+    R36SDiag_Message("VD1_SECONDARY_TABLE", msg);
   } else {
+    char msg[192];
     snprintf(msg, sizeof(msg),
-             "Vanilla Dome 1 missing secondary entrance: "
-             "1EF screen=%u, 11A candidates=%d; "
-             "no verified secondary entrance; native 11A start is fallback",
-             (unsigned)exit_screen, count);
-    R36SDiag_Message("VD1_SECONDARY_SCAN", msg);
+             "MISSING vanilla ROM secondary entries: sizes F800=%u FA00=%u "
+             "FC00=%u FE00=%u; repair smw_assets.dat from original US ROM",
+             (unsigned)kLevelInfo_05F800_SIZE,
+             (unsigned)kLevelInfo_05FA00_SIZE,
+             (unsigned)kLevelInfo_05FC00_SIZE,
+             (unsigned)kLm5FE00_SIZE);
+    R36SDiag_Message("VD1_MISSING_SECONDARY_ASSETS", msg);
   }
 }
 
-/* The documented Vanilla Dome 1 main and second areas are 11A/1EF.
+/* Guard against broken old vanilla assets: no manual player coordinates.\n * The real fix is to restore the missing ROM bank-$05 entrance tables.\n * The documented Vanilla Dome 1 main and second areas are 11A/1EF.
  * The log proves a pipe in 1EF is incorrectly resolving to bonus 100
  * with bonus flag=0. Only repair this precise sequence when we have
  * the player's known previous main-level pipe position to return to.
