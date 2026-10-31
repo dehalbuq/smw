@@ -156,3 +156,44 @@ geometria dos níveis.
 visualmente que chega ao checkpoint e não atravessa blocos.
 Se registrar `VD1_SAFE_RESTART`, sabemos que só foi evitada uma
 posição insegura: não declarar bug resolvido.
+
+## Causa-raiz confirmada por leitura do extrator (31/10/2026)
+
+O log `run-20250904-011458.log` comprovou que Vanilla Dome 1 usa
+`[VD1_EXIT_OBJECT] screen=5 exit_to=ef secondary=1` na sala
+`1EF`. A entrada correta é o **índice secundário 1EF**; ele não é o
+destino final da sala. O código carregava a sala `100` porque,
+para a ROM vanilla, `assets/compile_resources.py` deixava as
+seguintes tabelas de assets vazias:
+
+- `kLevelInfo_05F800` (idx 151): destino baixo da entrada secundária
+- `kLevelInfo_05FA00` (idx 152): configurações Y/câmera
+- `kLevelInfo_05FC00` (idx 153): configurações X/tela
+- `kLm5FE00` (idx 150): configurações adicionais da entrada
+
+Essas **quatro tabelas de 512 bytes estão na ROM original**,
+nos offsets PC `0x2F800`, `0x2FA00`, `0x2FC00` e `0x2FE00`.
+O extrator só preenchia os assets quando Lunar Magic instalara hooks
+de relocação: `lm_load_level=True`, comportamento incorreto para ROM
+vanilla. Foi alterado para usar os offsets ROM vanilla quando não
+existir essa relocação, mantendo a leitura via hooks para LM 3.33.
+
+ATENÇÃO: recompilar somente o `smw-gles2` **não** corrige os assets
+já extraídos. Atualizar `smw_assets.dat` com a ROM americana original.
+O reparador no pacote fornecido no chat é uma alternativa à extração
+completa: valida ROM SHA1, valida assinatura e lista de assets,
+restaura apenas essas quatro tabelas e cria um arquivo de saída separado.
+Não incluir ROM nem tabelas de ROM no repositório/distribuição.
+
+A recuperação experimental v1 tinha valores +64/-16 e causou morte.
+A v3 reiniciava 11A sem acessar o Midway Gate correto. A versão v4
+**não sobrescreve as entradas secundárias legítimas**: usa a própria
+entrada `1EF` lida do `smw_assets.dat` reparado.
+Registros esperados:
+`[VD1_SECONDARY_TABLE]` para entradas 1EF com tabelas completas,
+sem `[VD1_SAFE_RESTART]` e com carregamento da sala real de destino.
+Se continuar mostrando `[VD1_MISSING_SECONDARY_ASSETS]`, o DAT antigo
+ainda está sendo utilizado.
+
+Testes sintéticos do reparador passaram; validação com ROM/assets
+originais e no hardware R36S ainda pendente.
