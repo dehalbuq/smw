@@ -1,8 +1,6 @@
-#define STBI_ONLY_PNG
-#define STBI_NO_HDR
-#define STBI_NO_LINEAR
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+/* The game's src/glsl_shader.c already provides stb_image implementation.
+ * Reuse it rather than defining a second copy (would conflict with LTO). */
+#include "third_party/stb/stb_image.h"
 #include "r36s_backdrop.h"
 #include <stdio.h>
 #include <string.h>
