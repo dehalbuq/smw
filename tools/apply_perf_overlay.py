@@ -92,6 +92,34 @@ src=patch(src,
 
 pl.write_text(src, encoding='utf-8', newline='\n')
 
+# A screen exit may persist from a previously loaded sublevel in vanilla
+# SMW. Trace *actual object writes* in Vanilla Dome 1 to identify which
+# exit data the faulty pipe should use. No gameplay behavior change.
+po=repo/'src/smw_0d.c'
+objs=po.read_text()
+objs=patch(objs,
+           '#include "variables.h"',
+           '#include "variables.h"\n#include "r36s_diag.h"\n#include <stdio.h>',
+           'vd1-object-headers')
+objs=patch(objs,
+           '    flag_use_secondary_entrance = loadlvl_R11 >> 1;\n  }\n}',
+           """    flag_use_secondary_entrance = loadlvl_R11 >> 1;
+  }
+  if (ow_level_number_lo == 0x3e && counter_sublevels_entered <= 2) {
+    char note[210];
+    snprintf(note, sizeof(note),
+             "sublevels=%u screen=%u raw10=%02x raw11=%02x "
+             "exit_to=%02x flags=%02x secondary=%u",
+             (unsigned)counter_sublevels_entered, (unsigned)v2,
+             (unsigned)loadlvl_R10, (unsigned)loadlvl_R11,
+             (unsigned)blocks_object_number,
+             (unsigned)misc_subscreen_exit_properties[v2],
+             (unsigned)flag_use_secondary_entrance);
+    R36SDiag_Message("VD1_EXIT_OBJECT", note);
+  }
+}""", 'vd1-object-exits')
+po.write_text(objs, encoding='utf-8', newline='\n')
+
 ph=repo/'src/config.h'
 ch=ph.read_text()
 ch=patch(ch, '  kOutputMethod_OpenGL,', '  kOutputMethod_OpenGL,\n  kOutputMethod_R36S_GLES2,', 'config-enum')
