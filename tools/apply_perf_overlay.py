@@ -177,6 +177,6 @@ cr=patch(cr, 'uint8 g_runmode = RM_BOTH;', 'uint8 g_runmode = RM_MINE;', 'native
 pr.write_text(cr, encoding='utf-8', newline='\n')
 for name in ('r36s_fast_video.c', 'r36s_fast_video.h', 'r36s_gles2.c', 'r36s_gles2.h',
              'r36s_vd1_pipe.c', 'r36s_vd1_pipe.h',
-             'r36s_backdrop.c', 'r36s_backdrop.h', 'stb_image.h'):
+             'r36s_backdrop.c', 'r36s_backdrop.h'):
     shutil.copy2(base/'overlay/src'/name, repo/'src'/name)
 print('R36S native 4:3 performance overlay: comparison off, no widescreen')
