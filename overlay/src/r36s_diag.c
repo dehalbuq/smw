@@ -1,3 +1,17 @@
+/* Release build intentionally excludes all debug telemetry, file logging,
+ * signal handlers and per-frame formatting. Keep function ABI to preserve
+ * input/quit-menu behavior and existing overlay patch compatibility. */
+#ifdef R36S_RELEASE
+#include "r36s_diag.h"
+void R36SDiag_Init(void) {}
+void R36SDiag_Message(const char *type,const char *message) {(void)type;(void)message;}
+void R36SDiag_Assets(size_t size,unsigned int count) {(void)size;(void)count;}
+void R36SDiag_BeforeFrame(uint32_t frame,uint32_t inputs) {(void)frame;(void)inputs;}
+void R36SDiag_AfterFrame(uint32_t frame,uint32_t inputs,int mismatch,uint8_t game_id) {
+  (void)frame;(void)inputs;(void)mismatch;(void)game_id;
+}
+void R36SDiag_Close(void) {}
+#else
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #include "r36s_diag.h"
@@ -196,3 +210,5 @@ void R36SDiag_Close(void) {
   R36SDiag_Message("SHUTDOWN", "Normal exit");
   if (log_fd >= 0) { (void)fsync(log_fd); (void)close(log_fd); log_fd = -1; }
 }
+
+#endif /* !R36S_RELEASE */
