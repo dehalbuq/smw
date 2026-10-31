@@ -1,0 +1,66 @@
+name: SMW R36S Release Cortex-A35 capped 60 FPS
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'release/r36s-cortex-a35-60fps'
+    paths:
+      - 'src/**'
+      - 'third_party/**'
+      - 'overlay/**'
+      - 'tools/**'
+      - 'port/**'
+      - 'Makefile'
+      - '.github/workflows/build-r36s-release.yml'
+
+jobs:
+  release-aarch64:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: debian:bookworm
+    env:
+      R36S_RELEASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM64 build dependencies
+        run: |
+          set -eu
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev ca-certificates
+      - name: Apply stable inputs, menu and native 4:3 production overlays
+        run: |
+          set -eu
+          python3 tools/apply_overlay.py .
+          python3 tools/apply_perf_overlay.py .
+          grep -Fq 'R36SFast_Pace(true);' src/main.c
+      - name: Build stripped Cortex-A35 software and OpenGLES2 executables
+        run: |
+          set -eu
+          SDL_CFLAGS="$(sdl2-config --cflags)"
+          OPT="-O3 -g0 -DNDEBUG -DR36S_RELEASE=1 -flto=auto -mcpu=cortex-a35 -mtune=cortex-a35 -fno-strict-aliasing -fwrapv -fno-semantic-interposition -fomit-frame-pointer -fno-asynchronous-unwind-tables -fno-unwind-tables -ffunction-sections -fdata-sections -pipe -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -I. $SDL_CFLAGS"
+          LINK="-no-pie -flto=auto -Wl,--gc-sections -Wl,--as-needed -Wl,-O1"
+          mkdir -p dist/smw-r36s
+          make -j2 smw CC=gcc CFLAGS="$OPT" LDFLAGS="$LINK"
+          cp smw dist/smw-r36s/smw
+          make clean_obj
+          make -j2 smw CC=gcc CFLAGS="$OPT -DR36S_GLES2_SUPPORT=1" LDFLAGS="$LINK -lGLESv2 -lEGL"
+          cp smw dist/smw-r36s/smw-gles2
+          strip --strip-all dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+          chmod 755 dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+          cp port/smw-r36s.ini dist/smw-r36s/smw.ini
+          cp port/SMW-R36S.sh dist/SMW-R36S.sh
+          chmod 755 dist/SMW-R36S.sh
+          printf '%s\n' 'Use seu proprio smw_assets.dat CORRIGIDO (880156 bytes no teste).' 'Preserve saves e background.png.' 'Build de producao: nenhum arquivo de debug ou log de telemetria.' > dist/LEIA-ME-RELEASE.txt
+          printf '%s\n' 'Sem ROM, IPS ou recursos proprietarios.' > dist/smw-r36s/COLOQUE-OS-ASSETS-AQUI.txt
+          file dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+          test "$(readelf -h dist/smw-r36s/smw | grep Machine | grep -c AArch64)" = 1
+          test "$(readelf -h dist/smw-r36s/smw-gles2 | grep Machine | grep -c AArch64)" = 1
+          ! readelf -SW dist/smw-r36s/smw | grep -q '\.debug_'
+          ! readelf -SW dist/smw-r36s/smw-gles2 | grep -q '\.debug_'
+          sha256sum dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+      - name: Upload Release only (no debug symbols)
+        uses: actions/upload-artifact@v4
+        with:
+          name: smw-r36s-release-cortex-a35-60fps
+          path: dist/
+          retention-days: 30
