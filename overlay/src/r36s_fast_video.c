@@ -32,6 +32,29 @@ void R36SFast_ContentRect(int W,int H,int sw,int sh,R36SRect *r) {
   r->x=(W-w)/2;r->y=(H-h)/2;r->w=w;r->h=h;
 }
 void R36SFast_Pace(bool active) {
+#ifdef R36S_RELEASE
+  /* Hard 60 Hz cap on *every* simulated frame, including when the driver
+   * silently ignores VSync or the user disables frame delay. Unlike the
+   * old accumulator, a slow frame never triggers a >60 FPS catch-up burst.
+   * If a 60-Hz swap already blocked, no additional sleep is introduced. */
+  static Uint64 last_frame;
+  const Uint64 freq = SDL_GetPerformanceFrequency();
+  if (!active || !freq) {last_frame=0;return;}
+  const Uint64 tick = (freq + 59u) / 60u; /* ceil: not faster than 60 */
+  Uint64 now = SDL_GetPerformanceCounter();
+  if (last_frame) {
+    const Uint64 limit = last_frame + tick;
+    if (now < limit) {
+      const Uint64 remaining = limit - now;
+      if (remaining > freq / 500) {
+        const Uint32 ms = (Uint32)(remaining * 1000 / freq);
+        if (ms > 1) SDL_Delay(ms - 1);
+      }
+      while ((now = SDL_GetPerformanceCounter()) < limit) { }
+    }
+  }
+  last_frame = now;
+#else
   static Uint64 next_tick,last_report;
   static unsigned frames;
   if(!active) {next_tick=0;return;}
@@ -60,4 +83,5 @@ void R36SFast_Pace(bool active) {
   }
   next_tick+=frame_ticks;
   if(now>next_tick+frame_ticks*2)next_tick=now+frame_ticks;
+#endif /* R36S_RELEASE */
 }
