@@ -23,6 +23,9 @@ static int log_fd = -1;
 static volatile sig_atomic_t diag_frame, diag_phase, diag_inputs, in_signal;
 static uint8_t last_game_id = 255, last_mode = 255, last_level = 255, last_exit = 255;
 static int last_had_mismatch;
+/* Bonus rooms and pipe transitions do not necessarily change the overworld
+ * level id ($13BF). Track sublevel count and sprite 0x82 explicitly. */
+static uint8_t last_sublevels=255, last_bonus_flag=255;
 
 static void append_str(char *out, size_t *pos, size_t cap, const char *s) {
   while (*s && *pos + 1 < cap) out[(*pos)++] = *s++;
@@ -137,6 +140,54 @@ void R36SDiag_AfterFrame(uint32_t frame, uint32_t inputs, int mismatch_count, ui
   }
   if (mismatch && !last_had_mismatch)
     R36SDiag_Message("DIVERGENCE", "Emulation/port mismatch detected; inspect saves/*-bug-*.sav");
+  /* Additional diagnostics run only on transitions and once per 120 frames
+   * in sublevels. No game-state writes or gameplay changes. */
+  uint8_t sublevels = g_ram[0x141a];
+  uint8_t bonus = g_ram[0x1425];
+  if (sublevels != last_sublevels || bonus != last_bonus_flag ||
+      ((frame % 120) == 0 && (sublevels || bonus))) {
+    uint16_t player_y = (uint16_t)(g_ram[0x96] | g_ram[0x97] << 8);
+    uint16_t camera_y = (uint16_t)(g_ram[0x1c] | g_ram[0x1d] << 8);
+    uint16_t screen_y = (uint16_t)(g_ram[0x80] | g_ram[0x81] << 8);
+    char msg[272];
+    snprintf(msg, sizeof(msg),
+             "frame=%u map=%02x sublevels=%u bonus=%u secondary=%u entrance=%u "
+             "player_y=%u camera_y=%u screen_y=%u bonus_sprite_initialized=%u",
+             frame, level, sublevels, bonus, g_ram[0x1b93], g_ram[0x192a],
+             player_y, camera_y, screen_y, g_ram[0x1b94]);
+    R36SDiag_Message("SUBLEVEL", msg);
+  }
+  /* 0x82 is the native 1-UP bonus roulette sprite. Inspect actual
+   * coordinates, not the position of the overworld level. */
+  if ((frame % 120) == 0 || changed) {
+    unsigned count = 0;
+    char msg[512];
+    size_t used = 0;
+    for (int slot = 0; slot < 12; slot++) {
+      if (g_ram[0x14c8 + slot] && g_ram[0x9e + slot] == 0x82) {
+        if (!count) {
+          int n = snprintf(msg, sizeof(msg),
+               "frame=%u level=%02x sublevels=%u bonus=%u cam_y=%u mario_y=%u sprites=",
+               frame, level, sublevels, bonus,
+               (unsigned)(g_ram[0x1c] | g_ram[0x1d] << 8),
+               (unsigned)(g_ram[0x96] | g_ram[0x97] << 8));
+          used = n > 0 ? (size_t)n : 0;
+          if (used >= sizeof(msg)) used = sizeof(msg)-1;
+        }
+        if (used < sizeof(msg) - 52) {
+          int n = snprintf(msg + used, sizeof(msg) - used,
+                  "[%d x=%u y=%u] ", slot,
+                  (unsigned)(g_ram[0xe4 + slot] | g_ram[0x14e0 + slot] << 8),
+                  (unsigned)(g_ram[0xd8 + slot] | g_ram[0x14d4 + slot] << 8));
+          if (n > 0) used += (size_t)n;
+        }
+        count++;
+      }
+    }
+    if (count) R36SDiag_Message("BONUS_SPRITES", msg);
+  }
+  last_sublevels = sublevels;
+  last_bonus_flag = bonus;
   last_game_id = game_id;
   last_mode = mode; last_level = level; last_exit = exit_action;
   last_had_mismatch = mismatch;

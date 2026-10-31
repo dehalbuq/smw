@@ -617,6 +617,8 @@ def print_all(args):
 
   def add_load_level_stuff():
     lm_load_level = get_byte(0x5D9A1) == 0x22
+    # Vanilla ROMs need bank-$05 secondary entrances too: otherwise
+    # the non-Lunar-Magic loader resolves index 1EF as 100.
 
     p = get_24(0x6F624)
     add_asset_uint16('kLmModifyMap16Ids', util.get_words(p, 4096) if lm_load_level and p != 0xffffff else b'')
@@ -630,11 +632,11 @@ def print_all(args):
 
     add_asset_uint8('kLmLevelData5DC85', util.get_bytes(get_24(0x5DC86), 512) if lm_load_level else b'')    
     add_asset_uint8('kLmLevelData5DC8A', util.get_bytes(get_24(0x5DC8B), 512) if lm_load_level else b'')    
-    add_asset_uint8('kLm5FE00', util.get_bytes(get_24(0x5DC81), 512) if lm_load_level else b'')    
+    add_asset_uint8('kLm5FE00', util.get_bytes(get_24(0x5DC81), 512) if lm_load_level else util.get_bytes(0x2FE00, 512))    
 
-    add_asset_uint8('kLevelInfo_05F800', util.get_bytes(get_24(0xde191), 0x200) if lm_load_level else b'')
-    add_asset_uint8('kLevelInfo_05FA00', util.get_bytes(get_24(0xde198), 0x200) if lm_load_level else b'')
-    add_asset_uint8('kLevelInfo_05FC00', util.get_bytes(get_24(0xde19f), 0x200) if lm_load_level else b'')
+    add_asset_uint8('kLevelInfo_05F800', util.get_bytes(get_24(0xde191), 0x200) if lm_load_level else util.get_bytes(0x2F800, 0x200))
+    add_asset_uint8('kLevelInfo_05FA00', util.get_bytes(get_24(0xde198), 0x200) if lm_load_level else util.get_bytes(0x2FA00, 0x200))
+    add_asset_uint8('kLevelInfo_05FC00', util.get_bytes(get_24(0xde19f), 0x200) if lm_load_level else util.get_bytes(0x2FC00, 0x200))
     lm_feat.flags |= kLmFeature_LoadLevel if lm_load_level else 0
 
   add_load_level_stuff()
