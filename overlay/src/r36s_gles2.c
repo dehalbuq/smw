@@ -3,6 +3,7 @@
 #include <GLES2/gl2.h>
 #include "r36s_gles2.h"
 #include "r36s_fast_video.h"
+#include "r36s_backdrop.h"
 #include "config.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,7 +11,7 @@
 
 static SDL_Window *s_window;
 static SDL_GLContext s_context;
-static GLuint s_program,s_vbo,s_texture;
+static GLuint s_program,s_vbo,s_texture,s_background;
 static GLint s_uniform;
 static unsigned char *s_argb,*s_rgba;
 static size_t s_capacity;
@@ -79,16 +80,36 @@ static bool initialize(SDL_Window *window) {
   glGenBuffers(1,&s_vbo);
   glBindBuffer(GL_ARRAY_BUFFER,s_vbo);
   glBufferData(GL_ARRAY_BUFFER,sizeof(quad),quad,GL_STATIC_DRAW);
+  /* Upload the backdrop once at startup; the SNES texture remains
+   * GL_NEAREST and its integer 4:3 destination is unaffected. */
+  int bgw=0,bgh=0;
+  const unsigned char *bg=R36SBackdrop_LoadRGBA(&bgw,&bgh);
+  if(bg) {
+    glGenTextures(1,&s_background);
+    glBindTexture(GL_TEXTURE_2D,s_background);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,bgw,bgh,0,GL_RGBA,GL_UNSIGNED_BYTE,bg);
+    GLenum err=glGetError();
+    if(err!=GL_NO_ERROR) {
+      fprintf(stderr,"[BACKDROP] GLES2 texture upload error=0x%x; black borders kept\n",(unsigned)err);
+      glDeleteTextures(1,&s_background);s_background=0;
+    }
+    R36SBackdrop_FreePixels();
+  }
   fprintf(stderr,"[GLES2] renderer initialized: %s\n",glGetString(GL_VERSION));
   return true;
 }
 static void destroy(void) {
+  if(s_background) glDeleteTextures(1,&s_background);
   if(s_texture) glDeleteTextures(1,&s_texture);
   if(s_vbo) glDeleteBuffers(1,&s_vbo);
   if(s_program) glDeleteProgram(s_program);
   if(s_context) SDL_GL_DeleteContext(s_context);
   free(s_argb);free(s_rgba);
-  s_context=NULL;s_argb=s_rgba=NULL;s_capacity=0;s_texture=s_program=s_vbo=0;
+  s_context=NULL;s_argb=s_rgba=NULL;s_capacity=0;s_texture=s_program=s_vbo=s_background=0;
 }
 static void begin_draw(int w,int h,uint8 **pixels,int *pitch) {
   s_width=w;s_height=h;
@@ -126,14 +147,21 @@ static void end_draw(void) {
   R36SRect dst;R36SFast_ContentRect(out_w,out_h,s_width,s_height,&dst);
   glViewport(0,0,out_w,out_h);
   glClearColor(0,0,0,1);glClear(GL_COLOR_BUFFER_BIT);
-  glViewport(dst.x,out_h-(dst.y+dst.h),dst.w,dst.h);
   glUseProgram(s_program);
-  glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s_texture);
   glUniform1i(s_uniform,0);
   glBindBuffer(GL_ARRAY_BUFFER,s_vbo);
   glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
   glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,4*sizeof(GLfloat),(void*)0);
   glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,4*sizeof(GLfloat),(void*)(2*sizeof(GLfloat)));
+  if(s_background) {
+    /* Screen-filling backdrop stretches to any output aspect ratio;
+     * only the *backdrop* scales, never the 4:3 SNES framebuffer. */
+    glViewport(0,0,out_w,out_h);
+    glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s_background);
+    glDrawArrays(GL_TRIANGLE_STRIP,0,4);
+  }
+  glViewport(dst.x,out_h-(dst.y+dst.h),dst.w,dst.h);
+  glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s_texture);
   glDrawArrays(GL_TRIANGLE_STRIP,0,4);
   glDisableVertexAttribArray(0);glDisableVertexAttribArray(1);
   SDL_GL_SwapWindow(s_window);
