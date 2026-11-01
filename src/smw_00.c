@@ -1023,16 +1023,18 @@ void GameMode00_LoadNintendoPresents() {  // 009391
   ClearLayer3Tilemap();
   SetStandardPPUSettings();
   UploadGraphicsFiles_Layer3();
+  /* PT-BR visual edition: preserve intro timing and state, but display
+   * blank space in place of the publisher's animated splash graphic. */
   uint8 v0 = 12;
   for (uint8 i = 3; (i & 0x80) == 0; --i) {
     OamEnt *oam = get_OamEnt(oam_buf, v0);
-    oam->xpos = kGameMode00_LoadNintendoPresents_XDisp[i];
-    oam->ypos = 112;
-    oam->charnum = kGameMode00_LoadNintendoPresents_Tiles[i];
-    oam->flags = 48;
+    oam->xpos = 0;
+    oam->ypos = 0xf0;
+    oam->charnum = 0;
+    oam->flags = 0;
     v0 -= 4;
   }
-  oam_buf_ext[0] = -86;
+  oam_buf_ext[0] = 0;
   io_sound_ch3 = 1;
   timer_title_screen_input_timer = 64;
   GameMode00_LoadNintendoPresents_0093CA();
