@@ -1,0 +1,77 @@
+name: SMW R36S PT-BR Level Crash Debug ARM64
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'debug/ptbr-level-crash'
+    paths:
+      - 'src/**'
+      - 'smb1/**'
+      - 'smbll/**'
+      - 'third_party/**'
+      - 'Makefile'
+      - 'tools/**'
+      - 'overlay/**'
+      - 'port/**'
+      - '.github/workflows/build-r36s-ptbr-debug.yml'
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: debian:bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Cortex-A35 toolchain and GLES2
+        run: |
+          set -eu
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev ca-certificates
+      - name: Apply stable quit-menu diagnostics and fast native 4:3 overlay
+        run: |
+          set -eu
+          python3 tools/apply_overlay.py .
+          python3 tools/apply_perf_overlay.py .
+          python3 tools/ptbr_level_crash_trace.py .
+          grep -Fq 'PTBR_LEVEL_LOAD_BEGIN' src/smw_05.c
+      - name: Compile Cortex-A35 -O3 LTO (software and optional GLES2)
+        run: |
+          set -eu
+          SDL_CFLAGS="$(sdl2-config --cflags)"
+          FAST_FLAGS="-O3 -g3 -flto -mcpu=cortex-a35 -mtune=cortex-a35 -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -ffunction-sections -fdata-sections -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -DR36S_PTBR_DEBUG=1 -I. $SDL_CFLAGS"
+          FAST_LDFLAGS="-no-pie -flto -Wl,--build-id=sha1 -Wl,--gc-sections"
+          make -j2 smw CC=gcc CFLAGS="$FAST_FLAGS" LDFLAGS="$FAST_LDFLAGS"
+          mkdir -p dist/smw-r36s dist/debug-symbols
+          file smw
+          objcopy --only-keep-debug smw dist/debug-symbols/smw.debug
+          cp smw dist/smw-r36s/smw
+          strip --strip-debug dist/smw-r36s/smw
+          make clean_obj
+          make -j2 smw CC=gcc CFLAGS="$FAST_FLAGS -DR36S_GLES2_SUPPORT=1" LDFLAGS="$FAST_LDFLAGS -lGLESv2 -lEGL"
+          file smw
+          objcopy --only-keep-debug smw dist/debug-symbols/smw-gles2.debug
+          cp smw dist/smw-r36s/smw-gles2
+          strip --strip-debug dist/smw-r36s/smw-gles2
+          chmod +x dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+          cp port/smw-r36s.ini dist/smw-r36s/smw.ini
+          cp LICENSE.txt dist/smw-r36s/LICENSE.txt
+          cp port/SMW-R36S-PTBR-Debug.sh dist/SMW-R36S-PTBR-Debug.sh
+          chmod +x dist/SMW-R36S-PTBR-Debug.sh
+          printf 'source_commit=%s\n' "$GITHUB_SHA" > dist/debug-symbols/BUILD-INFO.txt
+          printf 'glibc_build=%s\n' "$(getconf GNU_LIBC_VERSION)" >> dist/debug-symbols/BUILD-INFO.txt
+          printf 'native_engine=1\ninteger_pixel_scale=1\noriginal_width=256\noriginal_height=224\n' >> dist/debug-symbols/BUILD-INFO.txt
+          ldd dist/smw-r36s/smw >> dist/debug-symbols/BUILD-INFO.txt 2>&1 || true
+          ldd dist/smw-r36s/smw-gles2 > dist/debug-symbols/GLES2-LIBRARIES.txt 2>&1 || true
+          sha256sum dist/smw-r36s/smw* >> dist/debug-symbols/BUILD-INFO.txt
+          printf '%s\n' 'Use seu proprio smw_assets.dat; ROM/IPS nao incluidos.' > dist/smw-r36s/COLOQUE-OS-ASSETS-AQUI.txt
+          cp docs/SMW-PTBR-CRASH-DEBUG.md dist/LEIA-ME-PTBR-CRASH-DEBUG.txt
+          printf '%s\n' 'PTBR_CRASH_DIAG=1' 'PIPE_RECOVERY=DISABLED' 'GAMEPLAY_PATCHES=none' >> dist/debug-symbols/BUILD-INFO.txt
+          file dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+          readelf -h dist/smw-r36s/smw | grep -q AArch64
+          readelf -h dist/smw-r36s/smw-gles2 | grep -q AArch64
+      - name: Upload fast ARM64 executables and debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: smw-r36s-ptbr-level-crash-debug
+          path: dist/
+          retention-days: 30
