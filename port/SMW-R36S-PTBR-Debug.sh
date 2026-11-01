@@ -11,6 +11,11 @@ STAMP="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo session)"
 export SMW_R36S_VD1_PIPE_FIX=0
 RUNLOG="logs/ptbr-run-${STAMP}.log"
 printf '%s\n' "$RUNLOG" > logs/last-ptbr-run-path.txt
+# Keep older diagnostic logs intact while making the latest session easy
+# to identify. This is done before the diagnostic handler opens its file.
+if [ -s logs/r36s-diagnostic.log ]; then
+  mv logs/r36s-diagnostic.log "logs/r36s-diagnostic-prev-${STAMP}.log" 2>/dev/null || true
+fi
 exec >> "$RUNLOG" 2>&1
 printf '=== SMW R36S PT-BR LEVEL-CRASH DIAGNOSTIC %s ===\n' "$STAMP"
 printf 'working_dir=%s\n' "$PWD"
