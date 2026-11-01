@@ -48,6 +48,11 @@ cci=dst/"common_cpu_infra.c"
 text=cci.read_text()
 text,n=re.subn(r"uint8 g_runmode = RM_BOTH;", "uint8 g_runmode = RM_MINE;",text)
 if n!=1: raise RuntimeError("couldn't select native SMW engine")
+# This Android package runs native-only SMW: SMB1/SMBLL are deliberately
+# absent from the Android.mk library target. Eliminate unreachable alternate
+# game selections so the link does not require their GameInfo structs.
+for unused in ("kSmb1GameInfo", "kSmbllGameInfo"):
+    text=text.replace("&"+unused, "&kSmwGameInfo")
 cci.write_text(text)
 
 # Avoid per-frame logging on the Android production build. Android's original
