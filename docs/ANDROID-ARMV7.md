@@ -49,3 +49,23 @@ apenas a testes locais; não serve para publicação na Play Store.
 - O fundo `background.png` e o launcher de PortMaster do R36S não são
   componentes desta primeira versão: o Android usa o renderizador SDL
   e sua configuração própria.
+
+## Compilação realizada e verificação do APK
+
+[Build bem-sucedido (GitHub Actions 41262179338)](https://github.com/dehalbuq/smw/actions/runs/41262179338),
+artefato `SMW-Android-ARMv7-32bit-APK` (ID 13065608018).
+
+O APK foi verificado no container após download: contém apenas
+`lib/armeabi-v7a/libmain.so`, `libSDL2.so`, `libSDL2_mixer.so` e
+`libc++_shared.so`. Não existem bibliotecas `arm64-v8a`, `x86`
+ou `x86_64`; também não há ROM `.sfc/.smc` ou `smw_assets.dat`.
+Tamanho do APK: **3.694.788 bytes**; SHA-256:
+`b77d4af0fd1ca3337f7fd67639c4b7a141bae0400e224809c680ed14cfca57a9`.
+
+**Estado da validação:** o CI confirma compilação Java/NDK, pacote APK
+com assinatura de depuração e ABI correta. **Ainda não testado num
+aparelho Android físico.** Bluetooth/gamepad são suportados pela camada
+SDL2 Android, mas o funcionamento individual depende do modelo de
+controle e do firmware. O background de bordas e o código GLES2 do
+R36S não foram diretamente transportados para o APK inicial: são
+renderizadores diferentes.
