@@ -46,8 +46,16 @@ change("""  ptr_layer1_data = kLevelData_Layer1(r14w).ptr;
              (unsigned)r14w,(void*)ptr_layer1_data,(void*)ptr_layer2_data);
     R36SDiag_Message("PTBR_LEVEL_DATA",b);
   }""","level-data")
-change("""  uint8 sprite_hdr = *GetSpriteListPtr();""",
-"""  const uint8 *spt=GetSpriteListPtr();
+change("""  ptr_sprite_list_data = (LongPtr){ 
+    .bank = kLmSpritePtrBankByte[r14w],
+    .addr = kLoadLevel_SpriteDataPtrs[r14w]
+  };
+  uint8 sprite_hdr = *GetSpriteListPtr();""",
+"""  ptr_sprite_list_data = (LongPtr){ 
+    .bank = kLmSpritePtrBankByte[r14w],
+    .addr = kLoadLevel_SpriteDataPtrs[r14w]
+  };
+  const uint8 *spt=GetSpriteListPtr();
   {
     char b[160];
     snprintf(b,sizeof(b),"asset=%03x sprite_header_ptr=%p",
