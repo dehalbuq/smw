@@ -36,8 +36,12 @@ for f in (src/"snes").glob("*"):
     if f.suffix in (".c",".h"):
         shutil.copy2(f,dst/"snes"/f.name)
 # Assets layout matches and user brings the corrected dat, not the ROM.
-shutil.copy2(src/"assets/smw_assets.h",dst/"assets/smw_assets.h")
-shutil.copy2(src/"assets/smw_assets.c",dst/"assets/smw_assets.c") if (src/"assets/smw_assets.c").exists() else None
+# The extracted asset IDs are unchanged. Adapt source-relative include for
+# the Android project layout (src/assets vs repo-root assets).
+asset_header=(fork/"assets/smw_assets.h").read_text()
+asset_header=asset_header.replace('#include "../src/types.h"', '#include "../types.h"')
+(dst/"assets/smw_assets.h").write_text(asset_header)
+
 
 # The native C engine avoids running the original ROM interpreter each frame.
 cci=dst/"common_cpu_infra.c"
