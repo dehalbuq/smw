@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'release/r36s-cortex-a35-60fps'
+      - 'feature/ptbr-visual-sem-nintendo'
     paths:
       - 'src/**'
       - 'third_party/**'
