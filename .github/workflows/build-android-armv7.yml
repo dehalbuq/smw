@@ -18,11 +18,11 @@ jobs:
     steps:
       - name: Checkout SMW native engine fork
         uses: actions/checkout@v4
-      - name: Set up Java 11
+      - name: Set up Java 17 for Android SDK manager
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
       - name: Install Android API 31 and NDK r25c
@@ -39,6 +39,11 @@ jobs:
           grep -q "abiFilters 'armeabi-v7a'" android-base/app/build.gradle
           test ! -f android-base/app/jni/SMW_SRC/assets/smw.sfc
           test ! -f android-base/app/jni/SMW_SRC/src/assets/smw.sfc
+      - name: Switch to Java 11 for legacy Android Gradle plugin
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
       - name: Build installable ARMv7 debug-key-signed APK
         working-directory: android-base
         run: |
