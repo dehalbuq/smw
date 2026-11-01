@@ -1,0 +1,66 @@
+name: Android ARMv7 (armeabi-v7a) APK
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/android-armv7
+    paths:
+      - tools/port_android_armv7.py
+      - .github/workflows/build-android-armv7.yml
+      - src/**
+      - assets/smw_assets.h
+
+jobs:
+  android32:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout SMW native engine fork
+        uses: actions/checkout@v4
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android API 31 and NDK r25c
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install 'platforms;android-31' 'build-tools;31.0.0' 'ndk;25.2.9519653'
+      - name: Fetch SDL2 Android project shell
+        run: |
+          git clone -q --depth 1 https://github.com/freyta/smw-android.git android-base
+      - name: Port engine, enforce 32-bit ARMv7 only
+        run: |
+          python3 tools/port_android_armv7.py android-base .
+          grep -q 'APP_ABI := armeabi-v7a' android-base/app/jni/Application.mk
+          grep -q "abiFilters 'armeabi-v7a'" android-base/app/build.gradle
+          test ! -f android-base/app/jni/SMW_SRC/assets/smw.sfc
+          test ! -f android-base/app/jni/SMW_SRC/src/assets/smw.sfc
+      - name: Build installable ARMv7 debug-key-signed APK
+        working-directory: android-base
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
+      - name: Verify ARMv7-only APK and publish
+        run: |
+          set -eu
+          APK=android-base/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -Z1 "$APK" | grep -Fx 'lib/armeabi-v7a/libmain.so'
+          if unzip -Z1 "$APK" | grep -Eq 'lib/(arm64-v8a|x86|x86_64)/'; then
+            echo 'ERROR: APK contains an architecture other than ARMv7' >&2
+            exit 1
+          fi
+          mkdir -p dist
+          cp "$APK" dist/SMW-Android-ARMv7-32bit.apk
+          sha256sum dist/SMW-Android-ARMv7-32bit.apk
+          file dist/SMW-Android-ARMv7-32bit.apk
+      - name: Upload 32-bit APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMW-Android-ARMv7-32bit-APK
+          path: dist/SMW-Android-ARMv7-32bit.apk
+          retention-days: 30
