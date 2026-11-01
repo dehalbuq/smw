@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/android-armv7
+      - feature/ptbr-visual-sem-nintendo
     paths:
       - tools/port_android_armv7.py
       - .github/workflows/build-android-armv7.yml
