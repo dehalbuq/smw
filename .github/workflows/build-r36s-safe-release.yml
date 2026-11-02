@@ -1,0 +1,107 @@
+name: SMW R36S ARM64 Safe Release Unlocked Render
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release/r36s-safe-unlocked-render
+    paths:
+      - 'src/**'
+      - 'smb1/**'
+      - 'smbll/**'
+      - 'third_party/**'
+      - 'overlay/**'
+      - 'tools/**'
+      - 'port/**'
+      - 'Makefile'
+      - '.github/workflows/build-r36s-safe-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  safe-release-aarch64:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: debian:bookworm
+    env:
+      R36S_RELEASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native ARM64 compiler and GLES2 dependencies
+        run: |
+          set -eu
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc make binutils file python3 libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev ca-certificates
+
+      - name: Apply R36S release and fixed-step renderer overlays
+        run: |
+          set -eu
+          python3 tools/apply_overlay.py .
+          python3 tools/apply_perf_overlay.py .
+          python3 tools/apply_safe_render.py .
+          grep -Fq 'const Uint64 r36s_logic_period' src/main.c
+          grep -Fq 'DrawPpuFrameWithPerf();' src/main.c
+          if grep -Fq 'R36SFast_Pace(true);' src/main.c; then
+            echo 'ERROR: original frame-coupled 60 Hz pacing was not removed'
+            exit 1
+          fi
+
+      - name: Build conservative ARM64 Cortex-A35 executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDL_CFLAGS="$(sdl2-config --cflags)"
+          # Avoid aggressive Release-only codegen regressions:
+          # no -O3, -Ofast, LTO, -DNDEBUG, frame-pointer omission, or strict aliasing.
+          OPT="-O1 -g0 -DR36S_RELEASE=1 -fno-lto -fno-strict-aliasing -fwrapv -fno-omit-frame-pointer -fno-optimize-sibling-calls -fstack-protector-strong -mcpu=cortex-a35 -mtune=cortex-a35 -DSYSTEM_VOLUME_MIXER_AVAILABLE=0 -I. $SDL_CFLAGS"
+          LINK="-no-pie -Wl,--build-id=sha1"
+          mkdir -p dist/smw-r36s
+          make -j2 smw CC=gcc CFLAGS="$OPT" LDFLAGS="$LINK"
+          cp smw dist/smw-r36s/smw
+          make clean_obj
+          make -j2 smw CC=gcc CFLAGS="$OPT -DR36S_GLES2_SUPPORT=1" LDFLAGS="$LINK -lGLESv2 -lEGL"
+          cp smw dist/smw-r36s/smw-gles2
+          strip --strip-all dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+          chmod 755 dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+          cp port/smw-r36s.ini dist/smw-r36s/smw.ini
+          # VSync=0 permits the renderer to run independently of fixed 60 Hz logic.
+          # Set VSync=1 on the R36S if there is tearing; simulation stays 60 Hz.
+          sed -i -E 's/^VSync[[:space:]]*=.*/VSync = 0/' dist/smw-r36s/smw.ini
+          cp port/SMW-R36S.sh dist/SMW-R36S.sh
+          cp LICENSE.txt dist/smw-r36s/LICENSE.txt
+          chmod 755 dist/SMW-R36S.sh
+
+          cat > dist/LEIA-ME-RELEASE-SEGURA.txt <<'EOT'
+          SMW / R36S ARM64 - RELEASE COM RENDERIZACAO INDEPENDENTE
+          =====================================================
+          Binarios: smw (SDL) e smw-gles2 (OpenGLES 2.0).
+          Compilacao: -O1, sem LTO, sem -DNDEBUG, sem telemetria de depuracao.
+          Fisica e logica: 60 atualizacoes/s, sem aceleracao do jogo.
+          Render: destravado com VSync=0 (SMW_R36S_RENDER_MAX_FPS=0).
+          Opcional: SMW_R36S_RENDER_MAX_FPS=60 ou 120 para limitar render.
+          Para remover tearing, mude VSync=1 no smw.ini.
+          Em uma tela de 60 Hz, render acima de 60 FPS nao cria animacoes novas.
+          Como a imagem do SMW muda a 60 Hz, frames extras apenas a repetem.
+          Preserva menu de saida SELECT + START / SELECT segurado.
+          NAO inclui smw_assets.dat, ROM ou outros dados comerciais.
+          Use os seus assets e mantenha a pasta saves existente.
+          FACA BACKUP dos binarios, saves e smw.ini anteriores antes de testar.
+          EOT
+          printf '%s\n' 'Coloque aqui seu smw_assets.dat de origem legitima.' > dist/smw-r36s/COLOQUE-ASSETS-AQUI.txt
+          file dist/smw-r36s/smw dist/smw-r36s/smw-gles2
+          readelf -h dist/smw-r36s/smw | grep -q AArch64
+          readelf -h dist/smw-r36s/smw-gles2 | grep -q AArch64
+          if readelf -SW dist/smw-r36s/smw-gles2 | grep -q '\.debug_'; then
+            echo 'Unexpected debug section'; exit 1
+          fi
+          sha256sum dist/smw-r36s/smw dist/smw-r36s/smw-gles2 > dist/SHA256SUMS.txt
+          cat dist/SHA256SUMS.txt
+
+      - name: Upload safe release binaries without proprietary assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: smw-r36s-safe-release-unlocked-render
+          path: dist/
+          retention-days: 30

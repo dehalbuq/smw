@@ -19,6 +19,7 @@ static GLint s_uniform;
 static unsigned char *s_argb,*s_rgba;
 static size_t s_capacity;
 static int s_use_bgra;
+static int s_crt_frame;
 static int s_width,s_height,s_texture_w,s_texture_h;
 
 static GLuint compile_shader(GLenum kind,const char *source) {
@@ -57,7 +58,7 @@ static bool initialize(SDL_Window *window) {
     "precision mediump float;\n"
     "varying vec2 v_uv;\n"
     "uniform sampler2D u_texture;\n"
-    "void main(){ gl_FragColor=vec4(texture2D(u_texture,v_uv).rgb,1.0); }\n";
+    "void main(){ gl_FragColor=texture2D(u_texture,v_uv); }\n";
   GLuint vs=compile_shader(GL_VERTEX_SHADER,vert);
   GLuint fs=compile_shader(GL_FRAGMENT_SHADER,frag);
   if (!vs || !fs) { if(vs)glDeleteShader(vs); if(fs)glDeleteShader(fs);return false; }
@@ -93,6 +94,8 @@ static bool initialize(SDL_Window *window) {
   int bgw=0,bgh=0;
   const unsigned char *bg=R36SBackdrop_LoadRGBA(&bgw,&bgh);
   if(bg) {
+    /* Transparent CRT frame is composited over the game, not behind it. */
+    s_crt_frame = strcmp(r36s_background_image, "crt_frame.png") == 0;
     glGenTextures(1,&s_background);
     glBindTexture(GL_TEXTURE_2D,s_background);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
@@ -125,7 +128,7 @@ static void destroy(void) {
   if(s_program) glDeleteProgram(s_program);
   if(s_context) SDL_GL_DeleteContext(s_context);
   free(s_argb);free(s_rgba);
-  s_context=NULL;s_argb=s_rgba=NULL;s_capacity=0;s_texture=s_program=s_vbo=s_background=0;s_use_bgra=0;
+  s_context=NULL;s_argb=s_rgba=NULL;s_capacity=0;s_texture=s_program=s_vbo=s_background=0;s_use_bgra=0;s_crt_frame=0;
 }
 static void begin_draw(int w,int h,uint8 **pixels,int *pitch) {
   s_width=w;s_height=h;
@@ -178,6 +181,16 @@ static void end_draw(void) {
   int out_w=0,out_h=0;
   SDL_GL_GetDrawableSize(s_window,&out_w,&out_h);
   R36SRect dst;R36SFast_ContentRect(out_w,out_h,s_width,s_height,&dst);
+  if(s_crt_frame) {
+    /* Percentage placement matches the exact 640x480 transparent CRT frame.
+     * Draw slightly behind the transparent glass outline. The opaque
+     * rounded CRT bezel masks pixels beyond the visible screen naturally.
+     * Width/height maintain the displayed 4:3 ratio. */
+    dst.x=(out_w*128+500)/1000;
+    dst.y=(out_h*110+500)/1000;
+    dst.w=(out_w*744+500)/1000;
+    dst.h=(out_h*744+500)/1000;
+  }
   glViewport(0,0,out_w,out_h);
   glClearColor(0,0,0,1);glClear(GL_COLOR_BUFFER_BIT);
   glUseProgram(s_program);
@@ -186,7 +199,7 @@ static void end_draw(void) {
   glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
   glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,4*sizeof(GLfloat),(void*)0);
   glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,4*sizeof(GLfloat),(void*)(2*sizeof(GLfloat)));
-  if(s_background) {
+  if(s_background && !s_crt_frame) {
     /* Screen-filling backdrop stretches to any output aspect ratio;
      * only the *backdrop* scales, never the 4:3 SNES framebuffer. */
     glViewport(0,0,out_w,out_h);
@@ -196,6 +209,16 @@ static void end_draw(void) {
   glViewport(dst.x,out_h-(dst.y+dst.h),dst.w,dst.h);
   glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,s_texture);
   glDrawArrays(GL_TRIANGLE_STRIP,0,4);
+  if(s_background && s_crt_frame) {
+    /* Composite the plastic TV bezel on top; the transparent glass aperture
+     * reveals only gameplay pixels. Keep the shader's alpha for the frame. */
+    glViewport(0,0,out_w,out_h);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glBindTexture(GL_TEXTURE_2D,s_background);
+    glDrawArrays(GL_TRIANGLE_STRIP,0,4);
+    glDisable(GL_BLEND);
+  }
   glDisableVertexAttribArray(0);glDisableVertexAttribArray(1);
   SDL_GL_SwapWindow(s_window);
 }
