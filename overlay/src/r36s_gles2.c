@@ -58,7 +58,7 @@ static bool initialize(SDL_Window *window) {
     "precision mediump float;\n"
     "varying vec2 v_uv;\n"
     "uniform sampler2D u_texture;\n"
-    "void main(){ gl_FragColor=vec4(texture2D(u_texture,v_uv).rgb,1.0); }\n";
+    "void main(){ gl_FragColor=texture2D(u_texture,v_uv); }\n";
   GLuint vs=compile_shader(GL_VERTEX_SHADER,vert);
   GLuint fs=compile_shader(GL_FRAGMENT_SHADER,frag);
   if (!vs || !fs) { if(vs)glDeleteShader(vs); if(fs)glDeleteShader(fs);return false; }
