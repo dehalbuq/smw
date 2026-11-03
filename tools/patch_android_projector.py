@@ -140,15 +140,23 @@ static void Smw_AttachBestPads(void) {
 
 // Fallback for older Bluetooth devices without SDL GameController mapping.
 static int Smw_RawButtonToGameButton(int button) {
+  // Chanuo A1 / PG-9068 mapping confirmed by FITD's Android HID report:
+  // 6 axes, 19 buttons, zero hats; DPAD is buttons 11..14.
   switch (button) {
     case 0: return kGamepadBtn_A;
     case 1: return kGamepadBtn_B;
     case 2: return kGamepadBtn_X;
     case 3: return kGamepadBtn_Y;
-    case 4: return kGamepadBtn_L1;
-    case 5: return kGamepadBtn_R1;
-    case 6: return kGamepadBtn_Back;
-    case 7: return kGamepadBtn_Start;
+    case 4: return kGamepadBtn_Back;
+    case 6: return kGamepadBtn_Start;
+    case 7: return kGamepadBtn_L3;
+    case 8: return kGamepadBtn_R3;
+    case 9: return kGamepadBtn_L1;
+    case 10: return kGamepadBtn_R1;
+    case 11: return kGamepadBtn_DpadUp;
+    case 12: return kGamepadBtn_DpadDown;
+    case 13: return kGamepadBtn_DpadLeft;
+    case 14: return kGamepadBtn_DpadRight;
     default: return -1;
   }
 }
@@ -174,6 +182,23 @@ static void Smw_PollPads(void) {
     if (pad) {
       if (!SDL_GameControllerGetAttached(pad)) {
         Smw_ClosePad(player);
+        continue;
+      }
+      // Prefer raw HID readings for the PG-9068 on this Mediatek Android TV:
+      // its SDL GameController button events may be lost behind the IR remote.
+      SDL_Joystick *joy = SDL_GameControllerGetJoystick(pad);
+      const char *rawname = joy ? SDL_JoystickName(joy) : NULL;
+      bool is_ipega = rawname && SDL_strcasecmp(rawname, "PG-9068") == 0;
+      if (is_ipega) {
+        for (int b = 0; b < SDL_JoystickNumButtons(joy); ++b) {
+          int key = Smw_RawButtonToGameButton(b);
+          if (key >= 0)
+            HandleGamepadInput(gi, key, SDL_JoystickGetButton(joy, b) != 0);
+        }
+        if (SDL_JoystickNumAxes(joy) > 1) {
+          HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_LEFTX, SDL_JoystickGetAxis(joy, 0));
+          HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_LEFTY, SDL_JoystickGetAxis(joy, 1));
+        }
         continue;
       }
       for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
@@ -236,6 +261,16 @@ static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
   g_config.enable_gamepad[1] = true;
   g_config.has_keyboard_controls |= 1;
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");""")
+
+    s = one(s, """  bool custom_size = g_config.window_width != 0 && g_config.window_height != 0;""", """  // Known working PG-9068 GUID and button layout from FITD Android hardware
+  // diagnostic (Chanuo A1): 6473:1026, D-pad on raw buttons 11..14.
+  SDL_GameControllerAddMapping(
+    "050013054919000002040000ffff3f00,PG-9068,"
+    "a:b0,b:b1,x:b2,y:b3,back:b4,start:b6,leftstick:b7,rightstick:b8,"
+    "leftshoulder:b9,rightshoulder:b10,dpup:b11,dpdown:b12,dpleft:b13,"
+    "dpright:b14,leftx:a0,lefty:a1,rightx:a2,righty:a3,"
+    "lefttrigger:a4,righttrigger:a5,platform:Android,");
+  bool custom_size = g_config.window_width != 0 && g_config.window_height != 0;""")
 
     s = one(s,
       """  if (!g_config.ignore_aspect_ratio)
