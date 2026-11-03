@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+"""Apply projector-safe Android input and integer pixel scaling to freyta SDL2 SMW.
+
+Based on the Chanuo A1 / PG-9068 diagnostic findings in FITD-R36S:
+IR input 'gpio_ir_recv', 'virtual-search' and MTK virtual devices must not
+consume player controller slots before physical Bluetooth/USB joysticks.
+Only changes the transient Android project built in CI, not desktop/R36S.
+"""
+from pathlib import Path
+
+MAIN = Path("app/jni/SMW_SRC/src/main.c")
+
+
+def one(s, old, new):
+    n = s.count(old)
+    if n != 1:
+        raise RuntimeError(f"expected exactly one Android C anchor ({n}): {old[:90]!r}")
+    return s.replace(old, new, 1)
+
+
+def apply(android_project):
+    main = Path(android_project) / MAIN
+    s = main.read_text(encoding="utf-8")
+
+    s = one(s, "static void OpenOneGamepad(int i);",
+            "static void Smw_AttachBestPads(void);")
+
+    start = s.index("static void OpenOneGamepad(int i) {")
+    end = s.index("static int RemapSdlButton(int button) {", start)
+    code = r'''
+// Chanuo A1: SDL marks the infrared remote and virtual-search inputs as
+// GameControllers. Prefer physical pads by name and capabilities, not index.
+static SDL_GameController *s_smw_pad[2] = {NULL, NULL};
+static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};
+
+static bool Smw_IsVirtualInput(const char *name) {
+  static const char *bad[] = {
+    "gpio_ir_recv", "virtual-search", "Android Accelerometer",
+    "Lm_Misc", "ACCDET", "mtk-kpd"
+  };
+  if (!name || !name[0]) return true;
+  for (int i = 0; i < (int)(sizeof(bad) / sizeof(bad[0])); ++i)
+    if (SDL_strcasecmp(name, bad[i]) == 0) return true;
+  return false;
+}
+
+static int Smw_PhysicalScore(int device) {
+  if (Smw_IsVirtualInput(SDL_JoystickNameForIndex(device))) return -1;
+  SDL_Joystick *joy = SDL_JoystickOpen(device);
+  if (!joy) return -1;
+  int axes = SDL_JoystickNumAxes(joy);
+  int buttons = SDL_JoystickNumButtons(joy);
+  int hats = SDL_JoystickNumHats(joy);
+  SDL_JoystickClose(joy);
+  // Reject remote-like devices with few/no gamepad controls.
+  if (buttons < 2 && hats < 1) return -1;
+  if (axes < 2 && buttons < 6 && hats < 1) return -1;
+  int score = 0;
+  if (axes >= 2) score += 100;
+  if (axes >= 4) score += 20;
+  if (buttons >= 4) score += 50;
+  if (buttons >= 8) score += 10;
+  if (hats > 0) score += 10;
+  if (SDL_IsGameController(device)) score += 20;
+  if (SDL_JoystickGetDeviceVendor(device) &&
+      SDL_JoystickGetDeviceProduct(device)) score += 10;
+  return score;
+}
+
+static void Smw_ClosePad(int player) {
+  if (player < 0 || player >= 2) return;
+  GamepadInfo *gi = &g_gamepad[player];
+  for (int button = 0; button < kGamepadBtn_Count; ++button)
+    if (gi->modifiers & (1u << button))
+      HandleGamepadInput(gi, button, false);
+  if (s_smw_pad[player]) {
+    SDL_GameControllerClose(s_smw_pad[player]);
+    s_smw_pad[player] = NULL;
+  }
+  if (s_smw_raw_pad[player]) {
+    SDL_JoystickClose(s_smw_raw_pad[player]);
+    s_smw_raw_pad[player] = NULL;
+  }
+  memset(gi, 0, sizeof(*gi));
+  gi->index = (uint8)player;
+  gi->joystick_id = -1;
+}
+
+static void Smw_AttachBestPads(void) {
+  for (int player = 0; player < 2; ++player) {
+    if (!g_config.enable_gamepad[player] ||
+        g_gamepad[player].joystick_id != -1) continue;
+    int best_device = -1, best_score = -1;
+    SDL_JoystickID chosen_id = -1;
+    for (int device = 0; device < SDL_NumJoysticks(); ++device) {
+      SDL_JoystickID id = SDL_JoystickGetDeviceInstanceID(device);
+      if (id < 0 || id == g_gamepad[0].joystick_id ||
+                    id == g_gamepad[1].joystick_id) continue;
+      int score = Smw_PhysicalScore(device);
+      if (score > best_score) {
+        best_score = score;
+        best_device = device;
+        chosen_id = id;
+      }
+    }
+    if (best_device < 0) return;
+    SDL_GameController *pad = NULL;
+    SDL_Joystick *raw = NULL;
+    SDL_Joystick *joystick = NULL;
+    if (SDL_IsGameController(best_device)) {
+      pad = SDL_GameControllerOpen(best_device);
+      if (pad) joystick = SDL_GameControllerGetJoystick(pad);
+    }
+    if (!joystick) {
+      raw = SDL_JoystickOpen(best_device);
+      joystick = raw;
+    }
+    if (!joystick) {
+      if (pad) SDL_GameControllerClose(pad);
+      return;
+    }
+    GamepadInfo *gi = &g_gamepad[player];
+    memset(gi, 0, sizeof(*gi));
+    gi->index = (uint8)player;
+    gi->joystick_id = SDL_JoystickInstanceID(joystick);
+    s_smw_pad[player] = pad;
+    s_smw_raw_pad[player] = raw;
+    fprintf(stderr, "SMW Android physical pad P%d: %s (score %d, id %d)\n",
+            player + 1, SDL_JoystickNameForIndex(best_device), best_score,
+            (int)chosen_id);
+  }
+}
+
+// Fallback for older Bluetooth devices without SDL GameController mapping.
+static int Smw_RawButtonToGameButton(int button) {
+  switch (button) {
+    case 0: return kGamepadBtn_A;
+    case 1: return kGamepadBtn_B;
+    case 2: return kGamepadBtn_X;
+    case 3: return kGamepadBtn_Y;
+    case 4: return kGamepadBtn_L1;
+    case 5: return kGamepadBtn_R1;
+    case 6: return kGamepadBtn_Back;
+    case 7: return kGamepadBtn_Start;
+    default: return -1;
+  }
+}
+
+static void Smw_HandleRawHat(GamepadInfo *gi, Uint8 hat) {
+  HandleGamepadInput(gi, kGamepadBtn_DpadUp,    (hat & SDL_HAT_UP) != 0);
+  HandleGamepadInput(gi, kGamepadBtn_DpadDown,  (hat & SDL_HAT_DOWN) != 0);
+  HandleGamepadInput(gi, kGamepadBtn_DpadLeft,  (hat & SDL_HAT_LEFT) != 0);
+  HandleGamepadInput(gi, kGamepadBtn_DpadRight, (hat & SDL_HAT_RIGHT) != 0);
+}
+
+// Some Android HID controllers report DPAD as keyboard arrow keys. Do not
+// consume remote arrow events as an extra player while a real pad is active.
+static void Smw_AndroidHidFallback(SDL_Keycode key, bool pressed) {
+  if (g_gamepad[0].joystick_id != -1) return;
+  int direction = -1;
+  if (key == SDLK_UP) direction = 0;
+  else if (key == SDLK_DOWN) direction = 1;
+  else if (key == SDLK_LEFT) direction = 2;
+  else if (key == SDLK_RIGHT) direction = 3;
+  if (direction >= 0) HandleCommand(kKeys_Controls + direction, pressed);
+}
+'''
+    s = s[:start] + code + "\n" + s[end:]
+
+    s = one(s, "  ParseConfigFile(config_file);",
+            """  ParseConfigFile(config_file);
+  // Keep original 256x224 pixels square: no stretched 4:3 or filtering.
+  g_config.output_method = kOutputMethod_SDL;
+  g_config.extended_aspect_ratio = 0;
+  g_config.ignore_aspect_ratio = false;
+  g_config.linear_filtering = false;
+  g_config.enable_gamepad[0] = true;
+  g_config.enable_gamepad[1] = true;
+  g_config.has_keyboard_controls |= 1;
+  SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");""")
+
+    s = one(s,
+      """  if (!g_config.ignore_aspect_ratio)
+    SDL_RenderSetLogicalSize(renderer, g_snes_width, g_snes_height);
+  if (g_config.linear_filtering)
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "best");""",
+      """  // Nearest neighbour at integer multiples; SDL centers black borders.
+  SDL_RenderSetLogicalSize(renderer, g_snes_width, g_snes_height);
+  SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);""")
+
+    s = one(s, """  for (int i = 0; i < SDL_NumJoysticks(); i++)
+    OpenOneGamepad(i);""", """  Smw_AttachBestPads();""")
+
+    evstart=s.index("      case SDL_CONTROLLERDEVICEADDED:")
+    evend=s.index("      case SDL_CONTROLLERAXISMOTION:", evstart)
+    s=s[:evstart]+r'''      case SDL_CONTROLLERDEVICEADDED:
+      case SDL_JOYDEVICEADDED:
+        // Never trust the newly added index: IR/virtual inputs may come first.
+        Smw_AttachBestPads();
+        break;
+      case SDL_CONTROLLERDEVICEREMOVED:
+      case SDL_JOYDEVICEREMOVED: {
+        SDL_JoystickID removed = event.type == SDL_CONTROLLERDEVICEREMOVED ?
+            event.cdevice.which : event.jdevice.which;
+        for (int player = 0; player < 2; ++player)
+          if (g_gamepad[player].joystick_id == removed)
+            Smw_ClosePad(player);
+        Smw_AttachBestPads();
+        break;
+      }
+''' +s[evend:]
+
+    s = one(s, """      case SDL_MOUSEWHEEL:""", r'''      case SDL_JOYAXISMOTION:
+        gi = GetGamepadInfo(event.jaxis.which);
+        if (gi && s_smw_raw_pad[gi->index] && event.jaxis.axis < 2)
+          HandleGamepadAxisInput(gi, event.jaxis.axis, event.jaxis.value);
+        break;
+      case SDL_JOYBUTTONDOWN:
+      case SDL_JOYBUTTONUP:
+        gi = GetGamepadInfo(event.jbutton.which);
+        if (gi && s_smw_raw_pad[gi->index]) {
+          int button = Smw_RawButtonToGameButton(event.jbutton.button);
+          if (button >= 0)
+            HandleGamepadInput(gi, button, event.type == SDL_JOYBUTTONDOWN);
+        }
+        break;
+      case SDL_JOYHATMOTION:
+        gi = GetGamepadInfo(event.jhat.which);
+        if (gi && s_smw_raw_pad[gi->index] && event.jhat.hat == 0)
+          Smw_HandleRawHat(gi, event.jhat.value);
+        break;
+      case SDL_MOUSEWHEEL:''')
+
+    s = one(s,
+"""      case SDL_KEYDOWN:
+        HandleInput(event.key.keysym.sym, event.key.keysym.mod, true);
+        break;
+      case SDL_KEYUP:
+        HandleInput(event.key.keysym.sym, event.key.keysym.mod, false);
+        break;""",
+"""      case SDL_KEYDOWN:
+        Smw_AndroidHidFallback(event.key.keysym.sym, true);
+        HandleInput(event.key.keysym.sym, event.key.keysym.mod, true);
+        break;
+      case SDL_KEYUP:
+        Smw_AndroidHidFallback(event.key.keysym.sym, false);
+        HandleInput(event.key.keysym.sym, event.key.keysym.mod, false);
+        break;""")
+
+    # SDL2 calls from the original Android host require no new library.
+    main.write_text(s, encoding="utf-8")
+    print("Android TV gamepad selector, raw joystick fallback, and pixel-perfect SDL2 scaling applied")
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) != 2:
+        sys.exit("usage: patch_android_projector.py ANDROID_PROJECT")
+    apply(sys.argv[1])
