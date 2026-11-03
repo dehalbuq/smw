@@ -109,14 +109,9 @@ old="""        if (hasStoragePermission()) {
 if old not in j: raise RuntimeError("MainActivity setup anchor missing")
 # Stage game data BEFORE SDLActivity.onCreate starts the native game thread.
 j=j.replace(old,"",1)
-old_oncreate="""        super.onCreate(savedInstanceState);
-
-        inflateOverlay();"""
-# This onCreate will be built after setup. Avoid racing the SDL thread.
+old_oncreate="        super.onCreate(savedInstanceState);"
 if old_oncreate not in j: raise RuntimeError("MainActivity onCreate anchor missing")
-j=j.replace(old_oncreate,"""        setupFiles();
-        super.onCreate(savedInstanceState);
-        inflateOverlay();""",1)
+j=j.replace(old_oncreate,"        setupFiles();\\n        super.onCreate(savedInstanceState);",1)
 # setupFiles() used to add overlay itself (twice!). Keep it only in onCreate.
 overlay_anchor="""        inflateOverlay();
     }
