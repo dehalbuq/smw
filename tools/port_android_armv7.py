@@ -147,5 +147,8 @@ gradle.write_text(g)
 for p in (jni/"assets/smw.sfc",jni/"src/assets/smw.sfc"):
     if p.exists():p.unlink()
 
+from patch_android_projector import apply as patch_projector
+patch_projector(app)
+
 print("Copied",len(files),"SMW core source files to the ARMv7 Android native project")
 print("Configured APP_ABI=armeabi-v7a APP_PLATFORM=android-23, GLES2 SDL, gamepad map")
