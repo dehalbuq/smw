@@ -35,24 +35,25 @@ jobs:
           python3 tools/port_android_armv7.py android-base .
           grep -q 'APP_ABI := armeabi-v7a' android-base/app/jni/Application.mk
           grep -q 'APP_OPTIM := release' android-base/app/jni/Application.mk
-      - name: Add privately supplied game asset to APK
+      - name: Download privately supplied game asset into APK
         env:
-          SMW_ASSETS_DAT_B64: ${{ secrets.SMW_ASSETS_DAT_B64 }}
+          SMW_ASSETS_PRIVATE_URL: ${{ secrets.SMW_ASSETS_PRIVATE_URL }}
         run: |
           set -euo pipefail
-          if [ -z "$SMW_ASSETS_DAT_B64" ]; then
-            echo "Missing SMW_ASSETS_DAT_B64 secret (your own smw_assets.dat encoded as base64)" >&2
+          if [ -z "$SMW_ASSETS_PRIVATE_URL" ]; then
+            echo "Missing SMW_ASSETS_PRIVATE_URL secret: temporary private direct-download URL to your smw_assets.dat" >&2
             exit 1
           fi
-          printf %s "$SMW_ASSETS_DAT_B64" | base64 -d > android-base/app/src/main/assets/smw_assets.dat
-          test "$(stat -c%s android-base/app/src/main/assets/smw_assets.dat)" -gt 100000
+          curl --fail --location --retry 2 --silent --show-error \
+            "$SMW_ASSETS_PRIVATE_URL" \
+            --output android-base/app/src/main/assets/smw_assets.dat
           python3 - <<'PY'
           from pathlib import Path
           p=Path("android-base/app/src/main/assets/smw_assets.dat")
           b=p.read_bytes()
-          assert len(b)>100000, "asset unexpectedly small"
-          assert b[:8] != b"\x00"*8, "asset appears empty"
-          print("Bundled personal game asset, bytes:",len(b))
+          assert len(b)>100000, "Invalid or missing asset"
+          assert b[:8] != bytes(8), "Asset appears empty"
+          print("Private asset available for local APK packing, bytes:",len(b))
           PY
       - name: Set up Java 11 for upstream Android Gradle
         uses: actions/setup-java@v4
