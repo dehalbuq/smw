@@ -4396,7 +4396,10 @@ void PlayerStateXX_EnterPipe_00D22D() {  // 00d22d
     }
     if (!(player_yspeed | player_xspeed))
       io_sound_ch1 = 4;
-    player_xspeed = kPlayerStateXX_EnterPipe_PipeXSpeed[v0];
+    // Vertical pipe actions (2=up, 3=down) must not add horizontal speed.
+    // The X table has only two entries; indexing 2 or 3 is out of bounds
+    // and may cause sideways drift under an optimizing compiler.
+    player_xspeed = (v0 < 2) ? kPlayerStateXX_EnterPipe_PipeXSpeed[v0] : 0;
     player_yspeed = kPlayerStateXX_EnterPipe_PipeYSpeed[v0];
     player_in_air_flag = 0;
     UpdatePlayerSpritePosition();
