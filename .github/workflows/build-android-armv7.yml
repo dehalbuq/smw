@@ -1,10 +1,11 @@
-name: SMW Android ARMv7 optimized Release (private asset assembled locally)
+name: SMW Android ARMv7 Chanuo Gamepad Pixel-Perfect Release
 
 on:
   push:
-    branches: [feature/android-armv7-release-bundled]
+    branches: [feature/android-armv7-chanuo-pad-pixelperfect]
     paths:
       - tools/port_android_armv7.py
+      - tools/patch_android_projector.py
       - .github/workflows/build-android-armv7.yml
       - src/**
       - assets/smw_assets.h
