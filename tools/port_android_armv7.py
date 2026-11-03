@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Prepare freyta/smw-android for a distinct ARMv7 build of dehalbuq/smw.
-AOSP SDK/NDK build occurs in GitHub Actions, no ROM/assets are packaged.
+AOSP SDK/NDK build occurs in GitHub Actions; private assets are added locally after CI.
 Android-specific Java, SDL2 and storage/file-loading code are retained.
 """
 from pathlib import Path
@@ -107,7 +107,23 @@ old="""        if (hasStoragePermission()) {
             requestStoragePermission();
         }"""
 if old not in j: raise RuntimeError("MainActivity setup anchor missing")
-j=j.replace(old,"        setupFiles();",1)
+# Stage game data BEFORE SDLActivity.onCreate starts the native game thread.
+j=j.replace(old,"",1)
+old_oncreate="""        super.onCreate(savedInstanceState);
+
+        inflateOverlay();"""
+# This onCreate will be built after setup. Avoid racing the SDL thread.
+if old_oncreate not in j: raise RuntimeError("MainActivity onCreate anchor missing")
+j=j.replace(old_oncreate,"""        setupFiles();
+        super.onCreate(savedInstanceState);
+        inflateOverlay();""",1)
+# setupFiles() used to add overlay itself (twice!). Keep it only in onCreate.
+overlay_anchor="""        inflateOverlay();
+    }
+    public void inflateOverlay()"""
+if overlay_anchor not in j: raise RuntimeError("overlay anchor missing")
+j=j.replace(overlay_anchor,"""    }
+    public void inflateOverlay()""",1)
 j=j.replace('                // File smwAssets = new File(externalDir, "smw_assets.dat");',
             '                File smwAssets = new File(externalDir, "smw_assets.dat");',1)
 start=j.index('                    // Copy the smw_assets.dat to the external dir')
