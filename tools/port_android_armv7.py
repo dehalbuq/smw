@@ -60,7 +60,7 @@ cci.write_text(text)
 mk=jni/"Android.mk"
 rw(mk,[("LOCAL_MODULE := main", """LOCAL_MODULE := main
 # Generic ARMv7-A target; don't require optional NEON on older devices.
-LOCAL_CFLAGS += -O3 -DNDEBUG -fwrapv -fno-strict-aliasing -ffunction-sections -fdata-sections
+LOCAL_CFLAGS += -O2 -DNDEBUG -g0 -fwrapv -fno-strict-aliasing -ffunction-sections -fdata-sections
 LOCAL_LDFLAGS += -Wl,--gc-sections
 """)])
 
@@ -95,6 +95,42 @@ ini=ini.replace("SavePlaythrough = 1","SavePlaythrough = 0")
 # SDL accelerated renderer is GLES2-backed on Android, no desktop GL.
 ini=ini.replace("#OutputMethod = SDL","OutputMethod = SDL")
 assets.write_text(ini)
+
+# The personal-use APK bundles smw_assets.dat in Android APK assets.
+# Android's game engine reads the copied file from app-specific storage.
+# No broad storage permissions are needed for getExternalFilesDir().
+activity=app/"app/src/main/java/net/freyta/smw/MainActivity.java"
+j=activity.read_text()
+old="""        if (hasStoragePermission()) {
+            setupFiles();
+        } else {
+            requestStoragePermission();
+        }"""
+if old not in j: raise RuntimeError("MainActivity setup anchor missing")
+j=j.replace(old,"        setupFiles();",1)
+j=j.replace('                // File smwAssets = new File(externalDir, "smw_assets.dat");',
+            '                File smwAssets = new File(externalDir, "smw_assets.dat");',1)
+start=j.index('                    // Copy the smw_assets.dat to the external dir')
+end=j.index('                } catch (IOException e)',start)
+j=j[:start]+"""                    // Install bundled game data on the first launch.
+                    if (!smwAssets.isFile() || smwAssets.length() == 0) {
+                        InputStream inputStream = getAssets().open("smw_assets.dat");
+                        writeDataToFile(smwAssets, inputStream);
+                    }
+
+"""+j[end:]
+activity.write_text(j)
+manifest=app/"app/src/main/AndroidManifest.xml"
+m=manifest.read_text()
+m=m.replace('android:allowBackup="true"','android:allowBackup="false"')
+# App-specific storage on Android 6+ does not require broad filesystem access.
+m=re.sub(r'(?m)^\s*<uses-permission android:name="android.permission.(?:WRITE_EXTERNAL_STORAGE|READ_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE)"\s*/>\s*\n','',m)
+manifest.write_text(m)
+# Prevent creating a debuggable or multi-ABI APK, and keep game assets uncompressed.
+gradle=app/"app/build.gradle"
+g=gradle.read_text()
+g=g.replace('release {\n            minifyEnabled false','release {\n            debuggable false\n            jniDebuggable false\n            minifyEnabled false',1)
+gradle.write_text(g)
 
 # No unauthorized game ROMs in installed APK and build outputs.
 for p in (jni/"assets/smw.sfc",jni/"src/assets/smw.sfc"):
