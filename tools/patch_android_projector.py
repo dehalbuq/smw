@@ -27,6 +27,7 @@ def apply(android_project):
 static void Smw_ClosePad(int player);
 static int Smw_RawButtonToGameButton(int button);
 static void Smw_HandleRawHat(GamepadInfo *gi, Uint8 hat);
+static void Smw_PollPads(void);
 static void Smw_AndroidHidFallback(SDL_Keycode key, bool pressed);
 static SDL_GameController *s_smw_pad[2] = {NULL, NULL};
 static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""")
@@ -161,6 +162,55 @@ static void Smw_HandleRawHat(GamepadInfo *gi, Uint8 hat) {
 
 // Some Android HID controllers report DPAD as keyboard arrow keys. Do not
 // consume remote arrow events as an extra player while a real pad is active.
+// FITD's working Chanuo A1 test polls the actual controller state.
+// Android TV firmware may enumerate devices without sending button events.
+static void Smw_PollPads(void) {
+  SDL_GameControllerUpdate();
+  SDL_JoystickUpdate();
+  for (int player = 0; player < 2; ++player) {
+    GamepadInfo *gi = &g_gamepad[player];
+    if (gi->joystick_id < 0) continue;
+    SDL_GameController *pad = s_smw_pad[player];
+    if (pad) {
+      if (!SDL_GameControllerGetAttached(pad)) {
+        Smw_ClosePad(player);
+        continue;
+      }
+      for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
+        int mapped = RemapSdlButton(b);
+        if (mapped >= 0)
+          HandleGamepadInput(gi, mapped,
+                             SDL_GameControllerGetButton(pad, (SDL_GameControllerButton)b) != 0);
+      }
+      HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_LEFTX,
+                             SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTX));
+      HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_LEFTY,
+                             SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTY));
+      HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_TRIGGERLEFT,
+                             SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERLEFT));
+      HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_TRIGGERRIGHT,
+                             SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT));
+    } else if (s_smw_raw_pad[player]) {
+      SDL_Joystick *raw = s_smw_raw_pad[player];
+      if (!SDL_JoystickGetAttached(raw)) {
+        Smw_ClosePad(player);
+        continue;
+      }
+      for (int b = 0; b < SDL_JoystickNumButtons(raw); ++b) {
+        int mapped = Smw_RawButtonToGameButton(b);
+        if (mapped >= 0)
+          HandleGamepadInput(gi, mapped, SDL_JoystickGetButton(raw, b) != 0);
+      }
+      if (SDL_JoystickNumAxes(raw) >= 2) {
+        HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_LEFTX, SDL_JoystickGetAxis(raw, 0));
+        HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_LEFTY, SDL_JoystickGetAxis(raw, 1));
+      }
+      if (SDL_JoystickNumHats(raw) > 0)
+        Smw_HandleRawHat(gi, SDL_JoystickGetHat(raw, 0));
+    }
+  }
+}
+
 static void Smw_AndroidHidFallback(SDL_Keycode key, bool pressed) {
   if (g_gamepad[0].joystick_id != -1) return;
   int direction = -1;
@@ -239,6 +289,12 @@ static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
           Smw_HandleRawHat(gi, event.jhat.value);
         break;
       case SDL_MOUSEWHEEL:''')
+
+    s = one(s, """    if (g_paused != audiopaused) {""", """    // Poll the actual pad state, instead of depending only on SDL events.
+    if ((frameCtr & 63u) == 0) Smw_AttachBestPads();
+    Smw_PollPads();
+
+    if (g_paused != audiopaused) {""")
 
     s = one(s,
 """      case SDL_KEYDOWN:
