@@ -1,7 +1,6 @@
-name: Android ARMv7 32-bit — private bundled-assets release
+name: SMW Android ARMv7 optimized Release (private asset assembled locally)
 
 on:
-  workflow_dispatch:
   push:
     branches: [feature/android-armv7-release-bundled]
     paths:
@@ -9,90 +8,66 @@ on:
       - .github/workflows/build-android-armv7.yml
       - src/**
       - assets/smw_assets.h
+  workflow_dispatch:
 
 jobs:
-  android32-release:
+  armv7-release-base:
     runs-on: ubuntu-24.04
+    timeout-minutes: 75
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 17
+      - name: Checkout native SMW engine
+        uses: actions/checkout@v4
+      - name: JDK 17 for Android SDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: Prepare Android SDK
+        uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools'
-      - name: Install SDK and ARMv7 NDK
+      - name: Install ARMv7 NDK and Android 31 platform
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install 'platforms;android-31' 'build-tools;31.0.0' 'ndk;25.2.9519653'
-      - name: Get Android SDL host and prepare SMW engine
-        run: |
-          git clone -q --depth 1 https://github.com/freyta/smw-android.git android-base
-          python3 tools/port_android_armv7.py android-base .
-          grep -q 'APP_ABI := armeabi-v7a' android-base/app/jni/Application.mk
-          grep -q 'APP_OPTIM := release' android-base/app/jni/Application.mk
-      - name: Download privately supplied game asset into APK
-        env:
-          SMW_ASSETS_PRIVATE_URL: ${{ secrets.SMW_ASSETS_PRIVATE_URL }}
+      - name: Prepare 32-bit SMW engine and SDL2 frontend
         run: |
           set -euo pipefail
-          if [ -z "$SMW_ASSETS_PRIVATE_URL" ]; then
-            echo "Missing SMW_ASSETS_PRIVATE_URL secret: temporary private direct-download URL to your smw_assets.dat" >&2
-            exit 1
-          fi
-          curl --fail --location --retry 2 --silent --show-error \
-            "$SMW_ASSETS_PRIVATE_URL" \
-            --output android-base/app/src/main/assets/smw_assets.dat
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path("android-base/app/src/main/assets/smw_assets.dat")
-          b=p.read_bytes()
-          assert len(b)>100000, "Invalid or missing asset"
-          assert b[:8] != bytes(8), "Asset appears empty"
-          print("Private asset available for local APK packing, bytes:",len(b))
-          PY
-      - name: Set up Java 11 for upstream Android Gradle
+          git clone -q --depth 1 https://github.com/freyta/smw-android.git android-base
+          python3 tools/port_android_armv7.py android-base .
+          grep -Fxq 'APP_ABI := armeabi-v7a' android-base/app/jni/Application.mk
+          grep -Fxq 'APP_OPTIM := release' android-base/app/jni/Application.mk
+          test ! -f android-base/app/src/main/assets/smw_assets.dat
+      - name: JDK 11 for upstream Gradle version
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '11'
-      - name: Compile release native engine and unsigned APK
+      - name: Build non-debuggable optimized ARMv7 unsigned Release APK
         working-directory: android-base
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon --stacktrace assembleRelease
-      - name: Sign personal-use APK
+      - name: Verify and collect base APK plus signing utilities
         run: |
           set -euo pipefail
-          BT="$ANDROID_HOME/build-tools/31.0.0"
           APK=android-base/app/build/outputs/apk/release/app-release-unsigned.apk
           test -s "$APK"
-          mkdir -p dist
-          keytool -genkeypair -noprompt -keystore /tmp/smw-private-release.jks -storetype JKS \
-            -alias smw-personal -keyalg RSA -keysize 3072 -validity 3650 \
-            -storepass android123 -keypass android123 \
-            -dname "CN=SMW Personal ARMv7, OU=Personal Testing, O=Private, C=BR"
-          "$BT/zipalign" -f -p 4 "$APK" dist/aligned.apk
-          "$BT/apksigner" sign --ks /tmp/smw-private-release.jks \
-            --ks-key-alias smw-personal --ks-pass pass:android123 \
-            --key-pass pass:android123 \
-            --out dist/SMW-Android-ARMv7-Release-Assets.apk dist/aligned.apk
-          rm dist/aligned.apk
-          "$BT/apksigner" verify --verbose dist/SMW-Android-ARMv7-Release-Assets.apk
-          "$BT/aapt" dump badging dist/SMW-Android-ARMv7-Release-Assets.apk | grep -E 'sdkVersion|native-code'
-          unzip -Z1 dist/SMW-Android-ARMv7-Release-Assets.apk | grep -Fx assets/smw_assets.dat
-          unzip -Z1 dist/SMW-Android-ARMv7-Release-Assets.apk | grep -Fx lib/armeabi-v7a/libmain.so
-          if unzip -Z1 dist/SMW-Android-ARMv7-Release-Assets.apk | grep -Eq 'lib/(arm64-v8a|x86|x86_64)/'; then
-            echo "Unexpected ABI" >&2; exit 1
+          unzip -Z1 "$APK" | grep -Fx 'lib/armeabi-v7a/libmain.so'
+          if unzip -Z1 "$APK" | grep -Eq 'lib/(arm64-v8a|x86|x86_64)/'; then
+            echo 'Only ARMv7 is permitted' >&2; exit 1
           fi
-          sha256sum dist/SMW-Android-ARMv7-Release-Assets.apk
-      - name: Upload finished APK artifact
+          mkdir -p dist
+          cp "$APK" dist/SMW-ARMv7-Release-unsigned.apk
+          BT="$ANDROID_HOME/build-tools/31.0.0"
+          cp "$BT/zipalign" dist/zipalign
+          cp "$BT/lib/apksigner.jar" dist/apksigner.jar
+          sha256sum dist/SMW-ARMv7-Release-unsigned.apk
+      - name: Upload base Release APK without game assets
         uses: actions/upload-artifact@v4
         with:
-          name: SMW-Android-ARMv7-Release-Assets
-          path: dist/SMW-Android-ARMv7-Release-Assets.apk
+          name: SMW-ARMv7-Release-base-and-signing
+          path: dist/
           retention-days: 7
