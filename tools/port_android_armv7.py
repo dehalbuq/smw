@@ -122,7 +122,7 @@ j=j.replace(overlay_anchor,"""    }
 j=j.replace('                // File smwAssets = new File(externalDir, "smw_assets.dat");',
             '                File smwAssets = new File(externalDir, "smw_assets.dat");',1)
 start=j.index('                    // Copy the smw_assets.dat to the external dir')
-end=j.index('                } catch (IOException e)',start)
+end=j.index('\n                } catch (IOException e)',start) + 1
 j=j[:start]+"""                    // Install bundled game data on the first launch.
                     if (!smwAssets.isFile() || smwAssets.length() == 0) {
                         InputStream inputStream = getAssets().open("smw_assets.dat");
