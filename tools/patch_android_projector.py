@@ -23,7 +23,13 @@ def apply(android_project):
     s = main.read_text(encoding="utf-8")
 
     s = one(s, "static void OpenOneGamepad(int i);",
-            "static void Smw_AttachBestPads(void);")
+            """static void Smw_AttachBestPads(void);
+static void Smw_ClosePad(int player);
+static int Smw_RawButtonToGameButton(int button);
+static void Smw_HandleRawHat(GamepadInfo *gi, Uint8 hat);
+static void Smw_AndroidHidFallback(SDL_Keycode key, bool pressed);
+static SDL_GameController *s_smw_pad[2] = {NULL, NULL};
+static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""")
 
     start = s.index("static void OpenOneGamepad(int i) {")
     end = s.index("static int RemapSdlButton(int button) {", start)
@@ -165,6 +171,8 @@ static void Smw_AndroidHidFallback(SDL_Keycode key, bool pressed) {
   if (direction >= 0) HandleCommand(kKeys_Controls + direction, pressed);
 }
 '''
+    code = code.replace("""static SDL_GameController *s_smw_pad[2] = {NULL, NULL};
+static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
     s = s[:start] + code + "\n" + s[end:]
 
     s = one(s, "  ParseConfigFile(config_file);",
