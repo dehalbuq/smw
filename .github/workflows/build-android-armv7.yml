@@ -53,9 +53,9 @@ jobs:
           c = Path("src/smw_00.c").read_text()
           for array in ("kPlayerGFXRt_PlayerXYDispIndexIndex",
                         "kPlayerGFXRt_DATA_00E18E"):
-            match = re.search(rf"static const uint8 {array}\\[71\\]\\s*=\\s*\\{{([^}}]+)\\}}", c)
+            match = re.search(rf"static const uint8 {array}\[71\]\s*=\s*\{{([^}}]+)\}}", c)
             assert match, f"Missing 71-entry pose table: {array}"
-            values = re.findall(r"0x[0-9a-fA-F]+|(?<![a-zA-Z0-9])\\d+", match.group(1))
+            values = re.findall(r"0x[0-9a-fA-F]+|(?<![a-zA-Z0-9])\d+", match.group(1))
             assert len(values) == 71, (array, len(values))
             assert int(values[70], 0) == 0, (array, values[70])
           patch = Path("tools/patch_android_projector.py").read_text()
