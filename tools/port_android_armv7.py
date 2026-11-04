@@ -42,6 +42,35 @@ asset_header=(fork/"assets/smw_assets.h").read_text()
 asset_header=asset_header.replace('#include "../src/types.h"', '#include "../types.h"')
 (dst/"assets/smw_assets.h").write_text(asset_header)
 
+# Android: selecting a blank save slot must create its SRAM record at once.
+# Vanilla SMW only writes a slot after a later overworld save prompt. Without
+# that prompt a session can end with every slot apparently empty.
+rw(dst/"smw_00.c", [(
+"""      RtlWriteSram();
+    }
+    ++misc_game_mode;
+    GameMode08_FileSelect_SetStripeImage(0x12);""",
+"""      RtlWriteSram();
+    } else {
+      // Android: persist the newly selected file even before first castle.
+      // ow_save_buffer has already been populated by InitializeSaveData.
+      SaveGame();
+    }
+    ++misc_game_mode;
+    GameMode08_FileSelect_SetStripeImage(0x12);"""
+)])
+
+# The usual overworld prompt may be skipped by a quick START+SELECT exit.
+# Once the save buffer has been synchronized on reaching a save landmark,
+# flush it immediately. This preserves the classic 3-slot SRAM format.
+rw(dst/"smw_04.c", [(
+"""    flag_show_save_prompt = 0;
+    pointer_display_overworld_prompt = 5;""",
+"""    flag_show_save_prompt = 0;
+    pointer_display_overworld_prompt = 5;
+    SaveGame();  // Android autosave: the overworld buffer is now consistent."""
+)])
+
 # Shared visual language with the R36S native START+SELECT quit overlay,
 # adapted to polling on Android 9 / Chanuo A1 input devices.
 for quit_menu_file in ("android_quit_menu.c", "android_quit_menu.h"):
