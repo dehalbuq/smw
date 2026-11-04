@@ -22,6 +22,8 @@ def apply(android_project):
     main = Path(android_project) / MAIN
     s = main.read_text(encoding="utf-8")
 
+    s = one(s, '#include "android_logging.h"', '#include "android_logging.h"\\n#include "android_quit_menu.h"')
+
     s = one(s, "static void OpenOneGamepad(int i);",
             """static void Smw_AttachBestPads(void);
 static void Smw_ClosePad(int player);
@@ -190,6 +192,20 @@ static void Smw_PollPads(void) {
       const char *rawname = joy ? SDL_JoystickName(joy) : NULL;
       bool is_ipega = rawname && SDL_strcasecmp(rawname, "PG-9068") == 0;
       if (is_ipega) {
+        if (player == 0) {
+          // FITD diagnosis: PG-9068 raw SELECT=b4, START=b6,
+          // A=b0, B=b1. Poll rather than waiting for Android TV events.
+          AndroidQuitMenu_Poll(SDL_JoystickGetButton(joy, 4) != 0,
+                               SDL_JoystickGetButton(joy, 6) != 0,
+                               SDL_JoystickGetButton(joy, 0) != 0,
+                               SDL_JoystickGetButton(joy, 1) != 0);
+        }
+        if (AndroidQuitMenu_IsOpen()) {
+          for (int b = 0; b < kGamepadBtn_Count; ++b)
+            if (gi->modifiers & (1u << b)) HandleGamepadInput(gi, b, false);
+          gi->axis_buttons = 0;
+          continue;
+        }
         for (int b = 0; b < SDL_JoystickNumButtons(joy); ++b) {
           int key = Smw_RawButtonToGameButton(b);
           if (key >= 0)
@@ -199,6 +215,19 @@ static void Smw_PollPads(void) {
           HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_LEFTX, SDL_JoystickGetAxis(joy, 0));
           HandleGamepadAxisInput(gi, SDL_CONTROLLER_AXIS_LEFTY, SDL_JoystickGetAxis(joy, 1));
         }
+        continue;
+      }
+      if (player == 0) {
+        AndroidQuitMenu_Poll(
+            SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_BACK) != 0,
+            SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_START) != 0,
+            SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_A) != 0,
+            SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_B) != 0);
+      }
+      if (AndroidQuitMenu_IsOpen()) {
+        for (int b = 0; b < kGamepadBtn_Count; ++b)
+          if (gi->modifiers & (1u << b)) HandleGamepadInput(gi, b, false);
+        gi->axis_buttons = 0;
         continue;
       }
       for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
@@ -219,6 +248,17 @@ static void Smw_PollPads(void) {
       SDL_Joystick *raw = s_smw_raw_pad[player];
       if (!SDL_JoystickGetAttached(raw)) {
         Smw_ClosePad(player);
+        continue;
+      }
+      if (player == 0)
+        AndroidQuitMenu_Poll(SDL_JoystickGetButton(raw, 4) != 0,
+                             SDL_JoystickGetButton(raw, 6) != 0,
+                             SDL_JoystickGetButton(raw, 0) != 0,
+                             SDL_JoystickGetButton(raw, 1) != 0);
+      if (AndroidQuitMenu_IsOpen()) {
+        for (int b = 0; b < kGamepadBtn_Count; ++b)
+          if (gi->modifiers & (1u << b)) HandleGamepadInput(gi, b, false);
+        gi->axis_buttons = 0;
         continue;
       }
       for (int b = 0; b < SDL_JoystickNumButtons(raw); ++b) {
@@ -360,6 +400,59 @@ static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
     // to losing transformation/animation frames.
     g_snes->disableRender = false;
     DrawPpuFrameWithPerf();""")
+
+    # Render exactly the same compact font/overlay as the R36S menu,
+    # directly into the native 256x224 pixel buffer before SDL presents it.
+    s = one(s, "  g_renderer_funcs.EndDraw();",
+            """  if (AndroidQuitMenu_IsOpen()) {
+    AndroidQuitMenu_Draw(pixel_buffer, pitch, g_snes_width * render_scale,
+                         g_snes_height * render_scale, render_scale);
+  }
+  g_renderer_funcs.EndDraw();""")
+
+    # Keep audio paused and game logic frozen while the exit menu is visible.
+    # Return through the normal SDL cleanup path rather than calling exit().
+    s = one(s, """    if (g_paused != audiopaused) {
+      audiopaused = g_paused;""",
+      """    if (AndroidQuitMenu_WantsExit()) {
+      running = false;
+      break;
+    }
+    bool paused_for_menu = AndroidQuitMenu_IsOpen();
+    bool should_pause_audio = g_paused || paused_for_menu;
+    if (should_pause_audio != audiopaused) {
+      audiopaused = should_pause_audio;""")
+
+    s = one(s, """    if (g_paused) {
+      SDL_Delay(16);
+      continue;
+    }""", """    if (paused_for_menu) {
+      // Draw menu over the last game frame without advancing simulation.
+      DrawPpuFrameWithPerf();
+      SDL_Delay(16);
+      continue;
+    }
+    if (g_paused) {
+      SDL_Delay(16);
+      continue;
+    }""")
+
+    # SDL button events may still be delivered before raw polling. Ignore
+    # them while the menu is up, but keep hot-plug and SDL_QUIT functioning.
+    s = one(s, """    while (SDL_PollEvent(&event)) {
+      switch (event.type) {""",
+      """    while (SDL_PollEvent(&event)) {
+      if (AndroidQuitMenu_IsOpen() &&
+          (event.type == SDL_CONTROLLERBUTTONDOWN ||
+           event.type == SDL_CONTROLLERBUTTONUP ||
+           event.type == SDL_CONTROLLERAXISMOTION ||
+           event.type == SDL_JOYBUTTONDOWN ||
+           event.type == SDL_JOYBUTTONUP ||
+           event.type == SDL_JOYAXISMOTION ||
+           event.type == SDL_JOYHATMOTION ||
+           event.type == SDL_KEYDOWN || event.type == SDL_KEYUP))
+        continue;
+      switch (event.type) {""")
 
     # SDL2 calls from the original Android host require no new library.
     main.write_text(s, encoding="utf-8")
