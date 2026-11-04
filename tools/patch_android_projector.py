@@ -290,6 +290,17 @@ static void Smw_AndroidHidFallback(SDL_Keycode key, bool pressed) {
 static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
     s = s[:start] + code + "\n" + s[end:]
 
+    # SDLActivity usually finishes the Java Activity but Android can keep
+    # libmain.so loaded and invoke main() a second time in the same process.
+    # Explicitly clear the previous confirmation and input state on EVERY run.
+    s = one(s, "int main(int argc, char** argv) {",
+            """int main(int argc, char** argv) {
+  AndroidQuitMenu_Reset();
+  g_input_state = 0;
+  g_paused = 0;
+  g_turbo = 0;
+  g_win_flags = SDL_WINDOW_RESIZABLE;""")
+
     s = one(s, "  ParseConfigFile(config_file);",
             """  ParseConfigFile(config_file);
   // Keep original 256x224 pixels square: no stretched 4:3 or filtering.
@@ -453,6 +464,21 @@ static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
            event.type == SDL_KEYDOWN || event.type == SDL_KEYUP))
         continue;
       switch (event.type) {""")
+
+    # Close live controller handles while SDL is still initialized. The old
+    # version left s_smw_pad[] holding pointers from the previous SDL session.
+    s = one(s, """  SDL_DestroyWindow(window);
+  SDL_Quit();
+  return 0;""", """  for (int player = 0; player < 2; ++player)
+    if (g_gamepad[player].joystick_id != -1)
+      Smw_ClosePad(player);
+  SDL_DestroyWindow(window);
+  SDL_Quit();
+  // A following SDLActivity launch might reuse this native library, not
+  // reinitialize its C static data.
+  AndroidQuitMenu_Reset();
+  g_input_state = 0;
+  return 0;""")
 
     # SDL2 calls from the original Android host require no new library.
     main.write_text(s, encoding="utf-8")
