@@ -15,6 +15,20 @@ static bool wait_for_chord_release;
 static bool prior_select, prior_start, prior_accept, prior_cancel;
 static Uint32 combo_started_at;
 
+/* SDLActivity may launch native main twice without unloading libmain.so.
+ * Never let a previous game's exit_requested flag kill the new session. */
+void AndroidQuitMenu_Reset(void) {
+  menu_open = false;
+  exit_requested = false;
+  combo_latched = false;
+  wait_for_chord_release = false;
+  prior_select = false;
+  prior_start = false;
+  prior_accept = false;
+  prior_cancel = false;
+  combo_started_at = 0;
+}
+
 void AndroidQuitMenu_Poll(bool select_down, bool start_down,
                           bool accept_down, bool cancel_down) {
   const bool chord = select_down && start_down;
