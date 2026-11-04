@@ -1,11 +1,13 @@
-name: SMW Android ARMv7 Chanuo A1 Growth Sprite and Full Frames
+name: SMW Android ARMv7 Chanuo A1 START SELECT Exit Menu
 
 on:
   push:
-    branches: [fix/android-armv7-powerup-sprite-fullframes]
+    branches: [feature/android-armv7-start-select-exit-menu]
     paths:
       - tools/port_android_armv7.py
       - tools/patch_android_projector.py
+      - tools/android_quit_menu.c
+      - tools/android_quit_menu.h
       - .github/workflows/build-android-armv7.yml
       - src/**
       - assets/smw_assets.h
@@ -62,6 +64,27 @@ jobs:
           assert "g_snes->disableRender = false;" in patch
           assert "DrawPpuFrameWithPerf();" in patch
           print("OK: pose 70 tables bounded, all game frames will be drawn")
+          PY
+      - name: Verify native START SELECT exit menu wiring
+        run: |
+          python3 -m py_compile tools/port_android_armv7.py tools/patch_android_projector.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          c=Path('tools/android_quit_menu.c').read_text()
+          h=Path('tools/android_quit_menu.h').read_text()
+          p=Path('tools/patch_android_projector.py').read_text()
+          b=Path('tools/port_android_armv7.py').read_text()
+          assert "AndroidQuitMenu_Poll(" in c and "AndroidQuitMenu_IsOpen" in c
+          assert "SDL_JoystickGetButton(joy, 4)" in p
+          assert "SDL_JoystickGetButton(joy, 6)" in p
+          assert "AndroidQuitMenu_WantsExit()" in p
+          assert "AndroidQuitMenu_Draw(pixel_buffer" in p
+          assert "g_snes->disableRender = false;" in p
+          assert "android_quit_menu.c" in b and "android_quit_menu.h" in b
+          assert "START = SAIR" in c and "SELECT = VOLTAR" in c
+          assert "void AndroidQuitMenu_Draw" in h
+          print("Android exit menu wired; render/asset/gamepad baselines intact")
           PY
       - name: Prepare 32-bit SMW engine and SDL2 frontend
         run: |
