@@ -347,6 +347,20 @@ static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
         HandleInput(event.key.keysym.sym, event.key.keysym.mod, false);
         break;""")
 
+    # Disallow deliberate render skipping even during turbo or replay-turbo.
+    # Keep the original 60 Hz pacing: under load the game slows down instead
+    # of silently dropping sprites/animation frames. Video frames are presented
+    # once per simulation frame, with no fixed FPS cap below 60.
+    s = one(s, """    g_snes->disableRender = (g_turbo ^ (is_replay & g_replay_turbo)) && (frameCtr & (g_turbo ? 0xf : 0x7f)) != 0;
+
+    if (!g_snes->disableRender)
+      DrawPpuFrameWithPerf();""",
+        """    // Chanuo SMW ARMv7: intentional frame skipping disabled.
+    // One visible render per executed game frame. Slowdown is preferable
+    // to losing transformation/animation frames.
+    g_snes->disableRender = false;
+    DrawPpuFrameWithPerf();""")
+
     # SDL2 calls from the original Android host require no new library.
     main.write_text(s, encoding="utf-8")
     print("Android TV gamepad selector, raw joystick fallback, and pixel-perfect SDL2 scaling applied")
