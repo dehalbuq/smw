@@ -22,7 +22,7 @@ def apply(android_project):
     main = Path(android_project) / MAIN
     s = main.read_text(encoding="utf-8")
 
-    s = one(s, '#include "android_logging.h"', '#include "android_logging.h"\n#include "android_quit_menu.h"')
+    s = one(s, '#include "android_logging.h"', '#include "android_logging.h"\n#include "android_quit_menu.h"\n#include "common_rtl.h"')
 
     s = one(s, "static void OpenOneGamepad(int i);",
             """static void Smw_AttachBestPads(void);
@@ -299,7 +299,11 @@ static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
   g_input_state = 0;
   g_paused = 0;
   g_turbo = 0;
-  g_win_flags = SDL_WINDOW_RESIZABLE;""")
+  g_win_flags = SDL_WINDOW_RESIZABLE;
+  // Work RAM survives a second SDL_main call when Android keeps libmain.so.
+  // If not cleared, SMW skips its reset vector and may show a blank blue PPU.
+  // SRAM is separate and must be loaded from disk after initialization.
+  memset(g_ram, 0, sizeof(g_ram));""")
 
     s = one(s, "  ParseConfigFile(config_file);",
             """  ParseConfigFile(config_file);
@@ -321,6 +325,13 @@ static SDL_Joystick *s_smw_raw_pad[2] = {NULL, NULL};""", "")
     "leftshoulder:b9,rightshoulder:b10,dpup:b11,dpdown:b12,dpleft:b13,"
     "dpright:b14,leftx:a0,lefty:a1,rightx:a2,righty:a3,"
     "lefttrigger:a4,righttrigger:a5,platform:Android,");
+  // The native game and MainActivity must share the same save directory.
+  const char *smw_storage = SDL_AndroidGetExternalStoragePath();
+  if (smw_storage && chdir(smw_storage) == 0) {
+    fprintf(stderr, "SMW Android storage: %s\\n", smw_storage);
+  } else {
+    fprintf(stderr, "SMW Android WARNING: persistent directory unavailable\\n");
+  }
   bool custom_size = g_config.window_width != 0 && g_config.window_height != 0;""")
 
     s = one(s,
