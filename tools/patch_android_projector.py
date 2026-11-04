@@ -22,7 +22,7 @@ def apply(android_project):
     main = Path(android_project) / MAIN
     s = main.read_text(encoding="utf-8")
 
-    s = one(s, '#include "android_logging.h"', '#include "android_logging.h"\\n#include "android_quit_menu.h"')
+    s = one(s, '#include "android_logging.h"', '#include "android_logging.h"\n#include "android_quit_menu.h"')
 
     s = one(s, "static void OpenOneGamepad(int i);",
             """static void Smw_AttachBestPads(void);
