@@ -1,8 +1,8 @@
-name: SMW Android ARMv7 Chanuo A1 Exit and Relaunch Fix
+name: SMW Android ARMv7 Chanuo A1 Cold Boot and SRAM Persist
 
 on:
   push:
-    branches: [fix/android-armv7-exit-relaunch]
+    branches: [fix/android-armv7-coldboot-and-sram]
     paths:
       - tools/port_android_armv7.py
       - tools/patch_android_projector.py
@@ -101,6 +101,24 @@ jobs:
           assert "Smw_ClosePad(player);" in patch
           assert "g_win_flags = SDL_WINDOW_RESIZABLE;" in patch
           print("OK: new native main resets exit request and SDL controller handles")
+          PY
+      - name: Regression checks for cold boot and persistent save slots
+        run: |
+          python3 -m py_compile tools/patch_android_projector.py tools/port_android_armv7.py
+          python3 tools/test_android_quit_menu.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("tools/patch_android_projector.py").read_text()
+          b=Path("tools/port_android_armv7.py").read_text()
+          assert 'memset(g_ram, 0, sizeof(g_ram));' in p
+          assert '#include "common_rtl.h"' in p
+          assert 'SDL_AndroidGetExternalStoragePath()' in p
+          assert 'chdir(smw_storage)' in p
+          assert 'SaveGame();' in b
+          assert 'rw(dst/"smw_00.c"' in b
+          assert 'rw(dst/"smw_04.c"' in b
+          assert 'AndroidQuitMenu_Reset();' in p
+          print("OK: RAM reset, persistent Android data dir and nonempty save slots")
           PY
       - name: Prepare 32-bit SMW engine and SDL2 frontend
         run: |
