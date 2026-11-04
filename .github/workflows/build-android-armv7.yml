@@ -1,13 +1,14 @@
-name: SMW Android ARMv7 Chanuo A1 START SELECT Exit Menu
+name: SMW Android ARMv7 Chanuo A1 Exit and Relaunch Fix
 
 on:
   push:
-    branches: [feature/android-armv7-start-select-exit-menu]
+    branches: [fix/android-armv7-exit-relaunch]
     paths:
       - tools/port_android_armv7.py
       - tools/patch_android_projector.py
       - tools/android_quit_menu.c
       - tools/android_quit_menu.h
+      - tools/test_android_quit_menu.py
       - .github/workflows/build-android-armv7.yml
       - src/**
       - assets/smw_assets.h
@@ -85,6 +86,21 @@ jobs:
           assert "START = SAIR" in c and "SELECT = VOLTAR" in c
           assert "void AndroidQuitMenu_Draw" in h
           print("Android exit menu wired; render/asset/gamepad baselines intact")
+          PY
+      - name: Test exit menu reset across repeated Android launches
+        run: |
+          python3 tools/test_android_quit_menu.py
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("tools/android_quit_menu.c").read_text()
+          header = Path("tools/android_quit_menu.h").read_text()
+          patch = Path("tools/patch_android_projector.py").read_text()
+          assert "void AndroidQuitMenu_Reset(void)" in source
+          assert "void AndroidQuitMenu_Reset(void)" in header
+          assert patch.count("AndroidQuitMenu_Reset();") >= 2
+          assert "Smw_ClosePad(player);" in patch
+          assert "g_win_flags = SDL_WINDOW_RESIZABLE;" in patch
+          print("OK: new native main resets exit request and SDL controller handles")
           PY
       - name: Prepare 32-bit SMW engine and SDL2 frontend
         run: |
