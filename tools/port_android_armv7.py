@@ -42,6 +42,12 @@ asset_header=(fork/"assets/smw_assets.h").read_text()
 asset_header=asset_header.replace('#include "../src/types.h"', '#include "../types.h"')
 (dst/"assets/smw_assets.h").write_text(asset_header)
 
+# Shared visual language with the R36S native START+SELECT quit overlay,
+# adapted to polling on Android 9 / Chanuo A1 input devices.
+for quit_menu_file in ("android_quit_menu.c", "android_quit_menu.h"):
+    shutil.copy2(fork/"tools"/quit_menu_file, dst/quit_menu_file)
+
+
 
 # The native C engine avoids running the original ROM interpreter each frame.
 cci=dst/"common_cpu_infra.c"
