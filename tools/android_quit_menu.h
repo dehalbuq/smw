@@ -2,6 +2,7 @@
 #define SMW_ANDROID_QUIT_MENU_H
 #include <stdbool.h>
 #include <stdint.h>
+void AndroidQuitMenu_Reset(void);
 void AndroidQuitMenu_Poll(bool select_down, bool start_down,
                           bool accept_down, bool cancel_down);
 bool AndroidQuitMenu_IsOpen(void);
