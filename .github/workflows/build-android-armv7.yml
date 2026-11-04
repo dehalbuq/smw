@@ -1,8 +1,8 @@
-name: SMW Android ARMv7 Chanuo PixelPerfect Pipe Drift Fix
+name: SMW Android ARMv7 Chanuo A1 Growth Sprite and Full Frames
 
 on:
   push:
-    branches: [fix/android-armv7-pipe-drift]
+    branches: [fix/android-armv7-powerup-sprite-fullframes]
     paths:
       - tools/port_android_armv7.py
       - tools/patch_android_projector.py
@@ -44,6 +44,24 @@ jobs:
           assert re.search(r'kPlayerStateXX_EnterPipe_PipeXSpeed\[2\]', code)
           assert re.search(r'kPlayerStateXX_EnterPipe_PipeYSpeed\[4\]', code)
           print('Pipe actions 0/1: horizontal velocity; 2/3: horizontal speed zero')
+          PY
+      - name: Verify growing and shrinking poses and full-frame policy
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          c = Path("src/smw_00.c").read_text()
+          for array in ("kPlayerGFXRt_PlayerXYDispIndexIndex",
+                        "kPlayerGFXRt_DATA_00E18E"):
+            match = re.search(rf"static const uint8 {array}\\[71\\]\\s*=\\s*\\{{([^}}]+)\\}}", c)
+            assert match, f"Missing 71-entry pose table: {array}"
+            values = re.findall(r"0x[0-9a-fA-F]+|(?<![a-zA-Z0-9])\\d+", match.group(1))
+            assert len(values) == 71, (array, len(values))
+            assert int(values[70], 0) == 0, (array, values[70])
+          patch = Path("tools/patch_android_projector.py").read_text()
+          assert "g_snes->disableRender = false;" in patch
+          assert "DrawPpuFrameWithPerf();" in patch
+          print("OK: pose 70 tables bounded, all game frames will be drawn")
           PY
       - name: Prepare 32-bit SMW engine and SDL2 frontend
         run: |
