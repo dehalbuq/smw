@@ -1,10 +1,11 @@
-name: SMW Android ARMv7 Chanuo A1 Cold Boot and SRAM Persist
+name: SMW Android TV ARMv7 Release v8 Latest v7 Engine
 
 on:
   push:
-    branches: [fix/android-armv7-coldboot-and-sram]
+    branches: [release/android-tv-armv7-v8]
     paths:
       - tools/port_android_armv7.py
+      - tools/gen_android_tv_banner.py
       - tools/patch_android_projector.py
       - tools/android_quit_menu.c
       - tools/android_quit_menu.h
@@ -128,6 +129,36 @@ jobs:
           grep -Fxq 'APP_ABI := armeabi-v7a' android-base/app/jni/Application.mk
           grep -Fxq 'APP_OPTIM := release' android-base/app/jni/Application.mk
           test ! -f android-base/app/src/main/assets/smw_assets.dat
+      - name: Verify native Android TV launcher, banner, and ARMv7 release
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          import xml.etree.ElementTree as ET
+          base = Path("android-base/app/src/main")
+          manifest = ET.parse(base / "AndroidManifest.xml").getroot()
+          a = "{http://schemas.android.com/apk/res/android}"
+          features = manifest.findall("uses-feature")
+          assert any(f.attrib.get(a + "name") == "android.software.leanback" and
+                     f.attrib.get(a + "required") == "false" for f in features)
+          assert any(f.attrib.get(a + "name") == "android.hardware.touchscreen" and
+                     f.attrib.get(a + "required") == "false" for f in features)
+          app = manifest.find("application")
+          assert app.attrib.get(a + "banner") == "@drawable/tv_banner"
+          activity = app.find("activity")
+          categories = {c.attrib.get(a+"name") for x in activity.findall("intent-filter")
+                        for c in x.findall("category")}
+          assert "android.intent.category.LEANBACK_LAUNCHER" in categories
+          assert "android.intent.category.LAUNCHER" in categories
+          banner = base / "res/drawable-nodpi/tv_banner.png"
+          png = banner.read_bytes()
+          assert png[:8] == b"\x89PNG\r\n\x1a\n"
+          assert struct.unpack(">II", png[16:24]) == (320, 180)
+          gradle = Path("android-base/app/build.gradle").read_text()
+          assert "versionCode 8" in gradle and "versionName \"1.0.8-tv\"" in gradle
+          assert "com.dehalbuq.smw" in gradle
+          print("PASS Android TV 320x180 banner, leanback launcher, same app ID, release v8")
+          PY
       - name: JDK 11 for upstream Gradle version
         uses: actions/setup-java@v4
         with:
