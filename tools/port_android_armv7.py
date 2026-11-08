@@ -220,5 +220,8 @@ patch_projector(app)
 from patch_android_native_layout import apply as patch_native
 patch_native(app)
 
+from patch_android_gamepad_bridge import apply as patch_bridge
+patch_bridge(app)
+
 print("Copied",len(files),"SMW core source files to the ARMv7 Android native project")
 print("Configured APP_ABI=armeabi-v7a APP_PLATFORM=android-23, GLES2 SDL, gamepad map")
