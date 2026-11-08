@@ -177,9 +177,9 @@ m=m.replace('    <!-- Touchscreen support -->',
 '''    <uses-feature android:name="android.software.leanback" android:required="false" />
     <!-- Touchscreen support -->''', 1)
 m=m.replace('android:icon="@mipmap/ic_launcher"',
-            'android:icon="@mipmap/ic_launcher"\\n        android:banner="@drawable/tv_banner"', 1)
+            'android:icon="@mipmap/ic_launcher"\n        android:banner="@drawable/tv_banner"', 1)
 m=m.replace('android:name="MainActivity"',
-            'android:name="MainActivity"\\n            android:banner="@drawable/tv_banner"', 1)
+            'android:name="MainActivity"\n            android:banner="@drawable/tv_banner"', 1)
 launcher='''            <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
