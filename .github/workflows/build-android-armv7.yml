@@ -1,10 +1,11 @@
-name: SMW Android TV ARMv7 Release v8 Latest v7 Engine
+name: SMW Android TV ARMv7 v10 Native Touch Layout and User Icon
 
 on:
   push:
-    branches: [release/android-tv-armv7-v8]
+    branches: [release/android-tv-armv7-v10-native-layout-logo]
     paths:
       - tools/port_android_armv7.py
+      - tools/patch_android_native_layout.py
       - tools/gen_android_tv_banner.py
       - tools/patch_android_projector.py
       - tools/android_quit_menu.c
@@ -155,9 +156,36 @@ jobs:
           assert png[:8] == b"\x89PNG\r\n\x1a\n"
           assert struct.unpack(">II", png[16:24]) == (320, 180)
           gradle = Path("android-base/app/build.gradle").read_text()
-          assert "versionCode 8" in gradle and "versionName \"1.0.8-tv\"" in gradle
+          assert "versionCode 10" in gradle and "versionName \"1.0.10-native-layout\"" in gradle
           assert "com.dehalbuq.smw" in gradle
           print("PASS Android TV 320x180 banner, leanback launcher, same app ID, release v8")
+          PY
+      - name: Verify native SMW artwork, no extra overlay, portrait and BACK
+        run: |
+          python3 -m py_compile tools/port_android_armv7.py tools/patch_android_native_layout.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          base=Path("android-base/app")
+          j=(base/"src/main/java/net/freyta/smw/MainActivity.java").read_text()
+          m=(base/"src/main/AndroidManifest.xml").read_text()
+          c=(base/"jni/SMW_SRC/src/main.c").read_text()
+          port=(base/"src/main/res/layout-port/layout.xml").read_text()
+          assert "TouchControlsView" not in j and not list(base.rglob("TouchControlsView.java"))
+          assert "setupNativeTouchLayout();" in j
+          assert "inflateOverlay();  // original layout" in j
+          assert "PackageManager.FEATURE_TOUCHSCREEN" in j
+          assert "InputManager.InputDeviceListener" in j
+          assert "MotionEvent.ACTION_POINTER_UP" in j
+          assert "onBackPressed()" in j and "now-lastBackUptime<=2800" in j
+          assert 'android:screenOrientation="fullUser"' in m
+          assert 'android:layout_width="132dp"' in port
+          assert "out_h*62/100" in c
+          assert "SDL_RenderCopy(g_renderer,g_texture,&g_sdl_renderer_rect,&game_rect);" in c
+          assert 'Smw_RawButtonToGameButton' in c
+          assert "SDL_JoystickGetButton(joy, 4)" in c
+          assert "AndroidQuitMenu_WantsExit()" in c
+          print("PASS original native buttons, no duplicate touch UI, Bluetooth, portrait, back x2")
           PY
       - name: JDK 11 for upstream Gradle version
         uses: actions/setup-java@v4
