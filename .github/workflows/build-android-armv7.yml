@@ -1,10 +1,12 @@
-name: SMW Android TV ARMv7 Release v8 Latest v7 Engine
+name: SMW Android TV ARMv7 v9 Touch Landscape Portrait Back Confirm
 
 on:
   push:
-    branches: [release/android-tv-armv7-v8]
+    branches: [feature/android-tv-touch-portrait-back-v9]
     paths:
       - tools/port_android_armv7.py
+      - tools/patch_android_touch.py
+      - tools/TouchControlsView.java
       - tools/gen_android_tv_banner.py
       - tools/patch_android_projector.py
       - tools/android_quit_menu.c
@@ -155,9 +157,42 @@ jobs:
           assert png[:8] == b"\x89PNG\r\n\x1a\n"
           assert struct.unpack(">II", png[16:24]) == (320, 180)
           gradle = Path("android-base/app/build.gradle").read_text()
-          assert "versionCode 8" in gradle and "versionName \"1.0.8-tv\"" in gradle
+          assert "versionCode 9" in gradle and "versionName \"1.0.9-tv-touch\"" in gradle
           assert "com.dehalbuq.smw" in gradle
           print("PASS Android TV 320x180 banner, leanback launcher, same app ID, release v8")
+          PY
+      - name: Validate touchscreen and gamepad coexistence, portrait layout and BACK confirmation
+        run: |
+          python3 -m py_compile tools/port_android_armv7.py tools/patch_android_touch.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          app=Path("android-base/app")
+          src=(app/"jni/SMW_SRC/src/main.c").read_text()
+          java=(app/"src/main/java/net/freyta/smw/MainActivity.java").read_text()
+          view=(app/"src/main/java/net/freyta/smw/TouchControlsView.java").read_text()
+          assert "Java_net_freyta_smw_MainActivity_nativeTouchButtons" in src
+          assert "uint32 inputs = g_input_state | touch" in src
+          assert "__atomic_load_n(&g_smw_touch_input" in src
+          assert "Smw_PollExitMenu" in src
+          assert "if (!s_smw_menu_polled)" in src
+          assert "int available_h = portrait ? out_h * 62 / 100 : out_h;" in src
+          assert "SDL_RenderCopy(g_renderer, g_texture, &g_sdl_renderer_rect, &game_rect);" in src
+          assert "Smw_PollPads();" in src and "AndroidQuitMenu_WantsExit()" in src
+          assert "fullSensor" in (app/"src/main/AndroidManifest.xml").read_text()
+          assert "PackageManager.FEATURE_TOUCHSCREEN" in java
+          assert "nativeTouchButtons(mask)" in java
+          assert "onBackPressed()" in java and "finish();" in java
+          assert "now - lastBackUptime <= 2800" in java
+          assert "MotionEvent.ACTION_POINTER_UP" in view
+          assert "MotionEvent.ACTION_CANCEL" in view
+          assert "h > w" in view and "w*.25f" in view
+          assert "activity.updateTouchButtons(mask)" in view
+          # Hardware gamepad code must still poll raw HID and SDL2 controllers.
+          assert "Smw_RawButtonToGameButton" in src
+          assert "SDL_JoystickGetButton(joy, 4)" in src
+          assert "SDL_GameControllerGetButton(pad" in src
+          print("PASS: touch + Bluetooth, 4:3-ish native 256x224 integer scale, portrait, BACK x2")
           PY
       - name: JDK 11 for upstream Gradle version
         uses: actions/setup-java@v4
