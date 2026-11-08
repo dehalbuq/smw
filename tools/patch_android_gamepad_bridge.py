@@ -85,8 +85,9 @@ static void Smw_AndroidMenuPoll(bool select, bool start,
     cfile.write_text(c,encoding="utf-8")
 
     s=java.read_text(encoding="utf-8")
-    s=one(s, "import android.view.InputDevice;",
-          "import android.view.InputDevice;\nimport android.view.MotionEvent;")
+    # MainActivity already imports both InputDevice and MotionEvent after v10 patch.
+    if "import android.view.InputDevice;" not in s or "import android.view.MotionEvent;" not in s:
+        raise RuntimeError("Android input imports missing")
     s=one(s, "    private View nativeOverlayView;",
           """    private View nativeOverlayView;
 
