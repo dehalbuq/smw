@@ -4,7 +4,7 @@ AOSP SDK/NDK build occurs in GitHub Actions; private assets are added locally af
 Android-specific Java, SDL2 and storage/file-loading code are retained.
 """
 from pathlib import Path
-import shutil, sys, re
+import shutil, sys, re, subprocess
 if len(sys.argv) != 3:
     sys.exit("usage: port_android_armv7.py ANDROID_PROJECT SMW_FORK")
 app=Path(sys.argv[1]).resolve()
@@ -115,6 +115,8 @@ g=g.replace("minSdkVersion 23","minSdkVersion 23")
 g=g.replace("android {", "android {\n    ndkVersion '25.2.9519653'",1)
 # Distinct appId so it does not replace the freyta project on devices.
 g=g.replace('applicationId "net.freyta.smw"','applicationId "com.dehalbuq.smw"')
+g=g.replace("versionCode 3", "versionCode 8", 1)
+g=g.replace('versionName "1.0.2"', 'versionName "1.0.8-tv"', 1)
 gradle.write_text(g)
 
 # Old upstream launcher can be hardcoded to net.freyta.smw for external dir;
@@ -169,9 +171,39 @@ activity.write_text(j)
 manifest=app/"app/src/main/AndroidManifest.xml"
 m=manifest.read_text()
 m=m.replace('android:allowBackup="true"','android:allowBackup="false"')
+# Android TV and standard phone/tablet launchers: retain both categories.
+# Non-touch devices including the Chanuo A1 can install and find the app.
+m=m.replace('    <!-- Touchscreen support -->',
+'''    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <!-- Touchscreen support -->''', 1)
+m=m.replace('android:icon="@mipmap/ic_launcher"',
+            'android:icon="@mipmap/ic_launcher"\\n        android:banner="@drawable/tv_banner"', 1)
+m=m.replace('android:name="MainActivity"',
+            'android:name="MainActivity"\\n            android:banner="@drawable/tv_banner"', 1)
+launcher='''            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>'''
+assert launcher in m, "Android launcher category missing"
+m=m.replace(launcher, launcher+''' 
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>''', 1)
+
 # App-specific storage on Android 6+ does not require broad filesystem access.
 m=re.sub(r'(?m)^\s*<uses-permission android:name="android.permission.(?:WRITE_EXTERNAL_STORAGE|READ_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE)"\s*/>\s*\n','',m)
 manifest.write_text(m)
+# The TV launcher requires a landscape banner. Generate it deterministically
+# without game ROM art or network image dependencies.
+subprocess.run([sys.executable, str(fork/"tools"/"gen_android_tv_banner.py"),
+                str(app/"app"/"src"/"main"/"res"/"drawable-nodpi"/"tv_banner.png")],
+               check=True)
+app_label=app/"app"/"src"/"main"/"res"/"values"/"strings.xml"
+text=app_label.read_text()
+assert '<string name="app_name">SMW</string>' in text
+app_label.write_text(text.replace('<string name="app_name">SMW</string>',
+                                 '<string name="app_name">Super Mario World TV</string>', 1))
 # Prevent creating a debuggable or multi-ABI APK, and keep game assets uncompressed.
 gradle=app/"app/build.gradle"
 g=gradle.read_text()
