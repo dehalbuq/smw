@@ -1,11 +1,12 @@
-name: SMW Android TV ARMv7 v10 Native Touch Layout and User Icon
+name: SMW Android TV ARMv7 v11 Bluetooth Controller Bridge
 
 on:
   push:
-    branches: [release/android-tv-armv7-v10-native-layout-logo]
+    branches: [fix/android-tv-armv7-v11-controller-bridge]
     paths:
       - tools/port_android_armv7.py
       - tools/patch_android_native_layout.py
+      - tools/patch_android_gamepad_bridge.py
       - tools/gen_android_tv_banner.py
       - tools/patch_android_projector.py
       - tools/android_quit_menu.c
@@ -156,7 +157,7 @@ jobs:
           assert png[:8] == b"\x89PNG\r\n\x1a\n"
           assert struct.unpack(">II", png[16:24]) == (320, 180)
           gradle = Path("android-base/app/build.gradle").read_text()
-          assert "versionCode 10" in gradle and "versionName \"1.0.10-native-layout\"" in gradle
+          assert "versionCode 11" in gradle and "versionName \"1.0.11-pad-bridge\"" in gradle
           assert "com.dehalbuq.smw" in gradle
           print("PASS Android TV 320x180 banner, leanback launcher, same app ID, release v8")
           PY
@@ -186,6 +187,35 @@ jobs:
           assert "SDL_JoystickGetButton(joy, 4)" in c
           assert "AndroidQuitMenu_WantsExit()" in c
           print("PASS original native buttons, no duplicate touch UI, Bluetooth, portrait, back x2")
+          PY
+      - name: Regression check Android physical controller bridge
+        run: |
+          python3 -m py_compile tools/patch_android_gamepad_bridge.py
+          python3 - <<'PY'
+          from pathlib import Path
+          base=Path("android-base/app")
+          c=(base/"jni/SMW_SRC/src/main.c").read_text()
+          j=(base/"src/main/java/net/freyta/smw/MainActivity.java").read_text()
+          assert "Java_net_freyta_smw_MainActivity_nativePhysicalControllerMask" in c
+          assert "__atomic_load_n(&g_android_physical_buttons" in c
+          assert "g_input_state | physical | g_gamepad[0].axis_buttons" in c
+          assert "static void Smw_AndroidMenuPoll(" in c
+          assert "if (!s_android_menu_polled)" in c
+          assert "SDL_GameControllerGetButton(pad" in c
+          assert "Smw_RawButtonToGameButton" in c
+          assert "private void restoreGameFocus()" in j
+          assert "mSurface.requestFocus()" in j
+          assert "dispatchKeyEvent(KeyEvent event)" in j
+          assert "dispatchGenericMotionEvent(MotionEvent event)" in j
+          assert "KeyEvent.KEYCODE_BUTTON_A" in j
+          assert "MotionEvent.AXIS_HAT_X" in j
+          assert "MotionEvent.AXIS_Y" in j
+          assert "InputDevice.SOURCE_JOYSTICK" in j
+          assert "nativePhysicalControllerMask(physicalKeyMask | physicalAxisMask)" in j
+          assert "clearPhysicalInput();" in j
+          assert "onBackPressed()" in j
+          assert "TouchControlsView" not in j
+          print("PASS: SDL + Java fallback, focus, controller disconnect, analog, native layout")
           PY
       - name: JDK 11 for upstream Gradle version
         uses: actions/setup-java@v4
