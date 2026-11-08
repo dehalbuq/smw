@@ -25,7 +25,7 @@ with zipfile.ZipFile(apk) as z:
             continue
         z.fp.seek(item.header_offset)
         header = z.fp.read(30)
-        if len(header) != 30 or header[:4] != b"PK\\x03\\x04":
+        if len(header) != 30 or header[:4] != b"PK\x03\x04":
             raise RuntimeError(f"Bad ZIP local header: {item.filename}")
         namelen, extralen = struct.unpack_from("<HH", header, 26)
         offset = item.header_offset + 30 + namelen + extralen
