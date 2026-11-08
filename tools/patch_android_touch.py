@@ -120,7 +120,7 @@ static void Smw_AndroidHidFallback''')
     activity=project/"app/src/main/java/net/freyta/smw/MainActivity.java"
     j=activity.read_text()
     j=replace_once(j, "import android.view.KeyEvent;",
-                   "import android.view.KeyEvent;\nimport android.os.SystemClock;\nimport android.content.pm.PackageManager;")
+                   "import android.view.KeyEvent;\nimport android.os.SystemClock;")
     j=replace_once(j, '        setupFiles();\n        super.onCreate(savedInstanceState);',
                    '        setupFiles();\n        super.onCreate(savedInstanceState);\n        installTouchControls();')
     # The upstream legacy overlay has disabled ABXY handlers; do not invoke it.
