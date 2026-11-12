@@ -1,5 +1,54 @@
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
+## Kali Linux na VirtualBox — runner proprio do GitHub (12/11/2026)
+
+**Objetivo:** compilar sem gastar minutos de runner hospedado pelo GitHub,
+usando somente o repositorio privado `dehalbuq/smw-rom-private`.
+Na data da configuracao, o GitHub Docs informa que runner self-hosted e gratuito
+em repos privados; a mudanca de cobranca anunciada para marco de 2026 foi adiada.
+
+**Instalador Kali x86-64:** [`INSTALAR_RUNNER_KALI.sh`](../cloud-kit/r36s/INSTALAR_RUNNER_KALI.sh)
+
+Em uma VM Kali x86-64 com usuario normal (nao root), boa memoria, disco e
+rede NAT; evite montar pasta Windows compartilhada:
+
+```bash
+sudo apt-get update && sudo apt-get install -y curl ca-certificates
+curl -fL https://raw.githubusercontent.com/dehalbuq/smw/main/cloud-kit/r36s/INSTALAR_RUNNER_KALI.sh -o INSTALAR_RUNNER_KALI.sh
+bash INSTALAR_RUNNER_KALI.sh
+```
+
+O instalador instala Docker, QEMU/binfmt, GitHub CLI, Rust, dependencias,
+verifica QEMU AArch64 com `debian:buster` e registra a VM como runner
+self-hosted **somente** para o repositorio privado com label `r36s-kali`.
+Uma autorizacao interativa via `gh auth login --web` e necessaria; a
+credencial usada para registro e temporaria, nao compartilhada com o chat.
+O runner inicia como servico systemd.
+
+**Workflow de build automatizado:** [`smw-r36s-kali-selfhosted.yml`](https://github.com/dehalbuq/smw-rom-private/blob/main/.github/workflows/smw-r36s-kali-selfhosted.yml)
+usa `runs-on: [self-hosted, Linux, X64, r36s-kali]`. O codigo Rust recompila
+o SNES usando ROM privada apenas na VM; o codigo C e compilado em Docker/QEMU
+AArch64 Debian Buster GLIBC 2.28, e o pacote PortMaster sem ROM e colocado
+como GitHub Action artifact privado. O checkout privado e copias da ROM sao
+apagados no final, assim como fontes temporarias.
+
+**Workflow criado e aguardando runner:** [#43295544908](https://github.com/dehalbuq/smw-rom-private/actions/runs/43295544908).
+Trabalhos sem runner podem expirar apos 24 horas; nesse caso, execute
+`Run workflow` novamente em Actions quando a VM estiver online.
+
+**Seguranca:** o grupo Docker tem poder de administrador **dentro da VM**.
+Nao habilitar runner no repositorio publico; nao montar particoes/pastas
+de Windows; nao expor porta 22/SSH ao mundo; nao executar workflows de
+contribuidores desconhecidos; manter a VM atualizada. Apenas workflows
+escritos no repo privado devem executar no runner. A VM deve ter
+recursos suficientes para Docker/QEMU e compilacao AArch64; desempenho
+pode ser limitado por emulacao do CPU ARM64.
+
+**Estado:** instalador e YAML publicados, mas nao ativados na VM do usuario;
+nao existe binario R36S novo aprovado ainda. Compilacao completa e
+testes de driver/controles no R36S continuam pendentes.
+
+
 ## Compilacao LOCAL no Linux (sem GitHub Actions) — preparado
 
 Pode ser executada em Ubuntu 24.04 LTS ou Linux Mint 22 com CPU
