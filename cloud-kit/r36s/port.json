@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "name": "smwrecompr36s.zip",
+  "items": [
+    "SMW Recomp R36S.sh",
+    "smwrecompr36s"
+  ],
+  "items_opt": null,
+  "attr": {
+    "title": "Super Mario World Recomp (R36S Experimental)",
+    "desc": "SMW static recompilation - separate R36S ARM64 GLES2 test build",
+    "inst": "Copy your own Super Mario World (USA) smw.sfc to smwrecompr36s folder.",
+    "genres": [
+      "platformer"
+    ],
+    "porter": [
+      "dehalbuq"
+    ],
+    "image": {},
+    "rtr": false,
+    "runtime": null,
+    "reqs": [],
+    "arch": [
+      "aarch64"
+    ]
+  }
+}
