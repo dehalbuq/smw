@@ -107,7 +107,9 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            build-essential binutils pkg-config xvfb xauth \
+            build-essential binutils pkg-config xvfb xauth cmake ninja-build \
+            python3 python3-pip libfreetype6-dev libasound2-dev \
+            libssl-dev libcurl4-openssl-dev libzstd-dev zlib1g-dev \
             libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev
       - name: Testar GLES2 real no ARM64 (sem ROM)
         if: steps.kit.outputs.present == 'true'
@@ -118,6 +120,23 @@ jobs:
             "$RUNNER_TEMP/smw-upstream" 2>&1 | tee "$RUNNER_TEMP/gles2-smoke.log"
           grep -q '^PASS SMW_GLES2_SMOKE' "$RUNNER_TEMP/gles2-smoke.log"
           echo 'ROM-free ARM64 GLES2 pixel validation: PASS.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preflight CMake ARM64 SDL2/GLES2 sem ROM
+        if: steps.kit.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          bash "$GITHUB_WORKSPACE/cloud-kit/tests/run_cmake_preflight.sh" \
+            "$RUNNER_TEMP/smw-upstream" "$RUNNER_TEMP/smw-cmake-preflight" \
+            2>&1 | tee "$RUNNER_TEMP/smw-cmake-preflight.log"
+          grep -q '^PASS CMAKE_EMUELEC_PREFLIGHT' "$RUNNER_TEMP/smw-cmake-preflight.log"
+          test ! -e "$RUNNER_TEMP/smw-upstream/src/gen/__emuelec_cloud_cmake_preflight_only.c"
+          echo 'ROM-free CMake target integration: PASS' >> "$GITHUB_STEP_SUMMARY"
+      - name: Anexar logs de preflight CMake
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smw-cmake-arm64-preflight-log
+          path: ${{ runner.temp }}/smw-cmake-preflight.log
+          if-no-files-found: ignore
       - name: Anexar resultado do teste GLES2
         if: always()
         uses: actions/upload-artifact@v4
