@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 RUN set -eux; \
-    printf 'deb http://archive.debian.org/debian buster main\n' > /etc/apt/sources.list; \
+    printf 'deb http://archive.debian.org/debian buster main\ndeb http://archive.debian.org/debian-security buster/updates main\n' > /etc/apt/sources.list; \
     printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99buster-archive; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
