@@ -1,0 +1,29 @@
+name: "R36S - Testar toolchain GLIBC 2.28 sem ROM"
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "cloud-kit/r36s/**"
+      - ".github/workflows/r36s-buster-preflight.yml"
+permissions:
+  contents: read
+jobs:
+  arm64-old-glibc:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir container Debian Buster (glibc 2.28) ARM64
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          docker build --platform linux/arm64 -f cloud-kit/r36s/Dockerfile.buster-arm64 -t smw-r36s-buster:toolchain .
+          docker run --rm --platform linux/arm64 smw-r36s-buster:toolchain bash -c '
+            set -eux
+            test "$(uname -m)" = aarch64
+            test "$(getconf GNU_LIBC_VERSION)" = "glibc 2.28"
+            cmake --version
+            pkg-config --modversion sdl2
+            echo PASS R36S_BUSTER_TOOLCHAIN
+          '
+          echo 'PASS R36S AArch64 toolchain GLIBC 2.28' >> "$GITHUB_STEP_SUMMARY"
