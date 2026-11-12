@@ -27,3 +27,38 @@ jobs:
             echo PASS R36S_BUSTER_TOOLCHAIN
           '
           echo 'PASS R36S AArch64 toolchain GLIBC 2.28' >> "$GITHUB_STEP_SUMMARY"
+      - name: Validar CMake e fontes reais com SDL2/GLES2 antigo sem ROM
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/mstan/SuperMarioWorldRecomp.git "$RUNNER_TEMP/smw-r36s-upstream"
+          cd "$RUNNER_TEMP/smw-r36s-upstream"
+          base64 --decode "$GITHUB_WORKSPACE/cloud-kit/EmuELEC48_Kit.tar.xz.b64" > "$RUNNER_TEMP/r36s-kit.tar.xz"
+          echo "e1bb6235bd584df602f5850884937c4f9486f1b7d4cac49309f7c5844a516030  $RUNNER_TEMP/r36s-kit.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/r36s-kit"
+          tar -xJf "$RUNNER_TEMP/r36s-kit.tar.xz" -C "$RUNNER_TEMP/r36s-kit"
+          cp -a "$RUNNER_TEMP/r36s-kit/tools/." ./tools/
+          cp -a "$RUNNER_TEMP/r36s-kit/ports" ./ports
+          python3 tools/apply_emuelec.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("src/port/gles2_renderer.c")
+          s = p.read_text()
+          old = "&renderer_begin_draw, &renderer_end_draw,"
+          if s.count(old) != 1: raise SystemExit("Renderer vtable changed")
+          p.write_text(s.replace(old, old + "\n      NULL,", 1))
+          PY
+          docker run --rm --platform linux/arm64 \
+            --mount "type=bind,src=$RUNNER_TEMP/smw-r36s-upstream,dst=/src" \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/cloud-kit/tests,dst=/tests,readonly" \
+            smw-r36s-buster:toolchain \
+            bash -c 'set -euo pipefail; bash /tests/run_cmake_preflight.sh /src /src/build-r36s-preflight; python3 /tests/compile_host_objects.py /src/build-r36s-preflight' \
+            2>&1 | tee "$RUNNER_TEMP/r36s-real-host-compile.log"
+          grep -q '^PASS SMW_ARM64_HOST_OBJECTS' "$RUNNER_TEMP/r36s-real-host-compile.log"
+          echo 'PASS: real R36S SDL2/GLES2 CMake and 15 AArch64 engine objects on glibc 2.28' >> "$GITHUB_STEP_SUMMARY"
+      - name: Logs de compilacao da engine sem ROM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r36s-glibc228-real-engine-preflight
+          path: ${{ runner.temp }}/r36s-real-host-compile.log
+          if-no-files-found: ignore
