@@ -1,5 +1,16 @@
 # SMW Recomp — build ARM64 SDL2/GLES2 100% no GitHub Actions
 
+## Fase seguinte — integração real do motor (12/11/2026)
+
+**Aprovada:** [GitHub Actions #43249213527](https://github.com/dehalbuq/smw/actions/runs/43249213527).
+
+- O CMake configurou **205 unidades de compilação** para o executável ARM64, com SDL2, GLES2, recomp-ui, rasterizador de widescreen adaptativo e fontes de co-op nativo presentes.
+- **15 módulos de verdade** compilaram em AArch64 sem ROM usando as flags exatas geradas pelo CMake. Inclui `src/main.c`, `src/port/gles2_renderer.c`, `src/smw_renderer.c`, `src/smw_video.c`, `src/config.c`, `src/smw_replay.c`, `src/foreign_controller.c`, `src/smw_netplay_lobby.c`, `src/smw_spc_player.c`, módulos de co-op e Falcon.
+- Teste gráfico GLSL ES 1.00 e conversão BGRA para RGBA permanece aprovado com contexto estrito OpenGL ES 2.0 Mesa no runner AArch64.
+- A ROM original **não** foi fornecida e nenhum CPU-C de jogo foi gerado. Isso **não** constitui build completo/link nem certificação em hardware EmuELEC 4.8.
+- Próximo estágio: configurar `SMW_PRIVATE_ROM_REPO` e `SMW_PRIVATE_ROM_TOKEN`, executar `Run workflow > full`. O workflow faz SHA-256 e gera os arquivos de `src/gen` no runner. Envie o link da execução para diagnosticarmos qualquer erro.
+- Depois do link passar, cruzar ABI/GLIBC/SDL/EGL contra o SDK do EmuELEC 4.8 específico do dispositivo antes do teste físico.
+
 ## Progresso confirmado em nuvem — 12/11/2026
 
 **GLES2 estrito / renderizador real:** [GitHub Actions #43240431294](https://github.com/dehalbuq/smw/actions/runs/43240431294) — **PASS**.
