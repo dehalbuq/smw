@@ -1,5 +1,39 @@
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
+## Compilacao LOCAL no Linux (sem GitHub Actions) — preparado
+
+Pode ser executada em Ubuntu 24.04 LTS ou Linux Mint 22 com CPU
+**x86_64** (usa Docker + QEMU para compilacao AArch64) ou em Linux ARM64
+nativo. O script baixa o codigo-fonte publico em checkout separado;
+gera CPU-C com Rust a partir de **sua ROM local** e remove a copia
+temporaria antes de compilar em Debian Buster AArch64 com GLIBC 2.28.
+
+Script: [`cloud-kit/r36s/COMPILAR_SMW_R36S_LINUX.sh`](../cloud-kit/r36s/COMPILAR_SMW_R36S_LINUX.sh).
+
+```bash
+curl -fL https://raw.githubusercontent.com/dehalbuq/smw/main/cloud-kit/r36s/COMPILAR_SMW_R36S_LINUX.sh -o COMPILAR_SMW_R36S_LINUX.sh
+bash COMPILAR_SMW_R36S_LINUX.sh preparar
+bash COMPILAR_SMW_R36S_LINUX.sh compilar "/home/SEU_USUARIO/ROMs/smw.sfc"
+```
+
+- **Nao executar como root** o script inteiro; o instalador solicita sudo apenas
+  para pacotes, Docker e permissoes de output.
+- Na primeira compilacao, o Docker/QEMU ARM64 baixara os pacotes da
+  distribuicao antiga; em PC x86_64 sera mais pesado que compilacao nativa.
+- Para baixa memoria, execute `JOBS=1 bash COMPILAR_SMW_R36S_LINUX.sh compilar "/caminho/smw.sfc"`.
+- **O ZIP previsto** apos build bem-sucedido ficara em
+  `~/SMWRecomp-R36S-Local/SMWRecomp-R36S-ARM64-GLES2-GLIBC228.zip`.
+  Os logs ficarao em `~/SMWRecomp-R36S-Local/logs/`.
+- A ROM nao sera incorporada no ZIP. Colocar manualmente a ROM original
+  `smw.sfc` na pasta `smwrecompr36s/` do SD depois do build.
+- Nao alterar particoes, instalar outro sistema operacional ou modificar
+  firmwares por meio desses scripts.
+- **Importante:** este pipeline local foi criado e revisado, mas o
+  executavel completo ainda nao foi produzido nem testado em hardware.
+  Qualquer erro de compilacao exige revisar `logs/03-compilacao-r36s.txt`.
+  CMake/15 fontes ja passaram na mesma toolchain em nuvem.
+
+
 **Projeto separado do port SMW original baseado em snesrev.**
 Não substituir nem renomear o binário/launcher do port anterior.
 
