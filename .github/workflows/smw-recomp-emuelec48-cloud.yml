@@ -130,6 +130,22 @@ jobs:
           grep -q '^PASS CMAKE_EMUELEC_PREFLIGHT' "$RUNNER_TEMP/smw-cmake-preflight.log"
           test ! -e "$RUNNER_TEMP/smw-upstream/src/gen/__emuelec_cloud_cmake_preflight_only.c"
           echo 'ROM-free CMake target integration: PASS' >> "$GITHUB_STEP_SUMMARY"
+      - name: Compilar 15 componentes reais ARM64 sem ROM
+        if: steps.kit.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/cloud-kit/tests/compile_host_objects.py" \
+            "$RUNNER_TEMP/smw-cmake-preflight" \
+            2>&1 | tee "$RUNNER_TEMP/smw-host-objects.log"
+          grep -q '^PASS SMW_ARM64_HOST_OBJECTS' "$RUNNER_TEMP/smw-host-objects.log"
+          echo '15 ARM64 host sources compiled without game ROM: PASS.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Anexar log de compilacao ARM64 sem ROM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smw-aarch64-host-object-compiles
+          path: ${{ runner.temp }}/smw-host-objects.log
+          if-no-files-found: ignore
       - name: Anexar logs de preflight CMake
         if: always()
         uses: actions/upload-artifact@v4
