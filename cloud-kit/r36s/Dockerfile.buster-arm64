@@ -1,0 +1,30 @@
+# Native AArch64 build container for the R36S / ArkOS family.
+# Debian Buster: glibc 2.28, older than PortMaster's ArkOS 2.30 baseline.
+# This container is ONLY a build environment. Never distribute its libc.
+FROM debian:buster
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+RUN set -eux; \
+    printf 'deb http://archive.debian.org/debian buster main\n' > /etc/apt/sources.list; \
+    printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99buster-archive; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      build-essential gcc g++ libc6-dev make ninja-build pkg-config \
+      git python3 python3-pip python3-setuptools python3-wheel \
+      libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libglvnd-dev \
+      libsdl2-dev libfreetype6-dev libasound2-dev libssl-dev \
+      libcurl4-openssl-dev libzstd-dev zlib1g-dev \
+      binutils file ca-certificates bash curl xz-utils; \
+    rm -rf /var/lib/apt/lists/*
+# Stock Buster CMake 3.13 is too old (upstream requires >=3.16).
+# PyPI's cmake wheel provides the build tool but not newer glibc to the game.
+RUN set -eux; \
+    python3 -m pip install --upgrade 'pip<24' 'setuptools<69'; \
+    python3 -m pip install 'cmake==3.25.2'; \
+    cmake --version; \
+    test "$(uname -m)" = aarch64; \
+    getconf GNU_LIBC_VERSION | grep -q 'glibc 2.28'; \
+    pkg-config --exists sdl2; \
+    echo 'PASS R36S_DEBIAN_BUSTER_TOOLCHAIN: AArch64 glibc 2.28'
+WORKDIR /src
