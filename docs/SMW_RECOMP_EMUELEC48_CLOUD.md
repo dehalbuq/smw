@@ -4,9 +4,10 @@ Este laboratório fica **isolado** do motor snesrev e dos releases do R36S já e
 
 ## Usar sem Kali, WSL ou compilação local
 
-1. Abra **Code > Add file > Upload files** em `dehalbuq/smw` pelo navegador.
-2. Envie o arquivo `SMWRecomp_EmuELEC48_GLES2_Kit.zip` disponível na conversa. Ele pode ficar **na raiz deste repositório** (caminho mais simples). Este ZIP não contém ROM e pode ficar público.
-3. Abra **Actions > SMW Recomp EmuELEC 4.8 ARM64 - Cloud > Run workflow**. Primeiro escolha `audit`. Verifique se o log detecta o patch GLES2, mods e widescreen.
+1. **O kit SDL2/GLES2 já está no GitHub**, em `cloud-kit/EmuELEC48_Kit.tar.xz.b64`; não precisa baixar ou enviar ZIP do ChatGPT.
+2. Abra **Actions > SMW Recomp EmuELEC 4.8 ARM64 - Cloud > Run workflow**. Escolha `audit` para inspecionar o checkout original, extrair/verificar o kit embutido e aplicar os patches. Este modo não precisa de ROM.
+3. Resultado confirmado do audit: [execução #43235960738](https://github.com/dehalbuq/smw/actions/runs/43235960738) — sucesso; SDL2/GLES2 patch aplicado ao checkout temporário e nenhum arquivo do motor snesrev alterado.
+
 4. Para compilar todo o jogo, crie **outro repositório privado** no GitHub, por exemplo `dehalbuq/smw-rom-private`. Pelo navegador, carregue sua cópia legal e verificada de *Super Mario World (USA)* como **`smw.sfc` na raiz** desse repositório privado. **Nunca envie a ROM para este repositório público!**
 5. Crie no GitHub um Fine-grained Personal Access Token com acesso de leitura de conteúdo **somente** ao repositório privado com sua ROM.
 6. Neste repositório público (`dehalbuq/smw`), abra **Settings > Secrets and variables > Actions > New repository secret** e crie:
