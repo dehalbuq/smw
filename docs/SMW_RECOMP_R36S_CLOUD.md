@@ -1,5 +1,30 @@
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
+## Falha real do primeiro build completo e correcao (12/11/2026)
+
+- [Execucao Kali #43295544908](https://github.com/dehalbuq/smw-rom-private/actions/runs/43295544908):
+  **FAIL em 14%**, apos checkout privado, checksum ROM, Docker+QEMU,
+  Rust/CPU 65816 regen e toolchain ARM64 Debian Buster passarem.
+- Causa direta em `tools/apply_renderer_hooks.py:85`:
+  `Path.write_text(changed, encoding='utf-8', newline='\\n')`
+  levanta `TypeError: write_text() got an unexpected keyword argument 'newline'`
+  no **Python 3.7** do Debian Buster. Nao indica erro do jogo nem da ROM.
+- Corrigido em `cloud-kit/r36s/build-and-package.sh`: patch pontual,
+  verificado por contagem exata, removendo apenas o parametro `newline`,
+  que nao e necessario para LF no Linux.
+  Commit publico: `f6a33740886d3b330ce3a9ecf186759397df08c9`.
+- Diagnostico secundario: o container compilava como root e deixou
+  arquivos da arvore CMake sem permissao para `smwrunner` apagar.
+  O workflow novo usa `docker run --user UID:GID --env HOME=/tmp` para
+  build e limpeza de pastas temporarias antigas via container isolado.
+  Commit privado: `ec30085c5266d332184906e841738dcdc9ffdb33`.
+- Novo workflow [#43331876649](https://github.com/dehalbuq/smw-rom-private/actions/runs/43331876649),
+  disparado automaticamente pelo commit privado. **Nao concluir que passou
+  ate conferir explicitamente o status e artefato.**
+- Se a compilacao falhar em outro ponto, ler `r36s-compile.log` do job,
+  corrigir o problema exato e reexecutar no runner Kali, sem necessidade
+  de alterar o firmware do R36S.
+
 ## Kali Linux na VirtualBox — runner proprio do GitHub (12/11/2026)
 
 **Objetivo:** compilar sem gastar minutos de runner hospedado pelo GitHub,
