@@ -22,6 +22,9 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   gcc g++ build-essential pkg-config cmake ninja-build file binutils xz-utils \
   docker.io qemu-user-static binfmt-support gh libicu-dev libssl-dev
 sudo systemctl enable --now docker
+if command -v update-binfmts >/dev/null 2>&1; then
+  sudo update-binfmts --enable qemu-aarch64 || true
+fi
 if ! id -nG | grep -qw docker; then
   echo "Adicionando usuario $(id -un) ao grupo docker; permissao elevada DENTRO DA VM."
   sudo usermod -aG docker "$(id -un)"
@@ -46,11 +49,15 @@ rustup toolchain install stable --profile minimal
 command -v cargo >/dev/null || fail "cargo/rustc indisponiveis"
 
 echo
-echo "== Autorizar GitHub na VM (apenas uma vez) =="
-if ! gh auth status --hostname github.com >/dev/null 2>&1; then
-  echo "Complete a autorizacao pelo navegador. Nao envie token ou senha para o chat."
-  gh auth login --hostname github.com --web --git-protocol https --scopes "repo,workflow"
-fi
+echo "== Autorizar GitHub na VM (somente para registrar o runner) =="
+# NUNCA manter uma credencial gh permanente no usuario que executara workflows.
+# A sessao gh sera armazenada em uma pasta temporaria e eliminada na saida.
+GH_CONFIG_DIR="$(mktemp -d)"
+chmod 700 "$GH_CONFIG_DIR"
+export GH_CONFIG_DIR
+trap 'rm -rf "$GH_CONFIG_DIR"' EXIT
+echo "Complete a autorizacao pelo navegador. Nao envie token ou senha para o chat."
+gh auth login --hostname github.com --web --git-protocol https --scopes "repo"
 gh api "repos/$REPO" --jq '.full_name' | grep -Fx "$REPO" >/dev/null \
   || fail "Conta gh sem acesso ao repositorio privado"
 
@@ -105,6 +112,8 @@ REGISTRATION_TOKEN="$(gh api -X POST "repos/$REPO/actions/runners/registration-t
   --work "_work" \
   --replace
 unset REGISTRATION_TOKEN
+rm -rf "$GH_CONFIG_DIR"
+unset GH_CONFIG_DIR
 
 echo "== Habilitando servico na VM =="
 sudo ./svc.sh install "$(id -un)"
