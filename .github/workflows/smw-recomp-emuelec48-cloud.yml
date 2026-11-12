@@ -12,6 +12,16 @@ on:
         description: "Branch/SHA do mstan/SuperMarioWorldRecomp"
         type: string
         default: main
+      with_ice:
+        description: "ICE online netplay; experimental dependency path"
+        type: choice
+        options: ["OFF", "ON"]
+        default: "OFF"
+      with_falcon_helper:
+        description: "Falcon asset builder; experimental ARM64 dependency path"
+        type: choice
+        options: ["OFF", "ON"]
+        default: "OFF"
   push:
     paths:
       - ".github/workflows/smw-recomp-emuelec48-cloud.yml"
@@ -108,8 +118,8 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && steps.kit.outputs.present == 'true' }}
         env:
           SMW_ALLOW_UNVERIFIED_ABI: "1"
-          SMW_BUNDLE_FALCON_CACHE_HELPER: "OFF"
-          SMW_NETPLAY_ICE: "OFF"
+          SMW_BUNDLE_FALCON_CACHE_HELPER: ${{ inputs.with_falcon_helper || 'OFF' }}
+          SMW_NETPLAY_ICE: ${{ inputs.with_ice || 'OFF' }}
           JOBS: "4"
         run: |
           set -euo pipefail
