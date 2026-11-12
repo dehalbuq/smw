@@ -51,7 +51,7 @@ jobs:
             --mount "type=bind,src=$RUNNER_TEMP/smw-r36s-upstream,dst=/src" \
             --mount "type=bind,src=$GITHUB_WORKSPACE/cloud-kit/tests,dst=/tests,readonly" \
             smw-r36s-buster:toolchain \
-            bash -c 'set -euo pipefail; git config --global --add safe.directory /src; bash /tests/run_cmake_preflight.sh /src /src/build-r36s-preflight; python3 /tests/compile_host_objects.py /src/build-r36s-preflight' \
+            bash -c 'set -euo pipefail; git config --global --add safe.directory /src; git config --global --add safe.directory /src/snesrecomp; git config --global --add safe.directory /src/recomp-ui; bash /tests/run_cmake_preflight.sh /src /src/build-r36s-preflight; python3 /tests/compile_host_objects.py /src/build-r36s-preflight' \
             2>&1 | tee "$RUNNER_TEMP/r36s-real-host-compile.log"
           grep -q '^PASS SMW_ARM64_HOST_OBJECTS' "$RUNNER_TEMP/r36s-real-host-compile.log"
           echo 'PASS: real R36S SDL2/GLES2 CMake and 15 AArch64 engine objects on glibc 2.28' >> "$GITHUB_STEP_SUMMARY"
