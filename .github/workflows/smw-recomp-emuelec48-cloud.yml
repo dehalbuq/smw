@@ -56,18 +56,22 @@ jobs:
         id: kit
         run: |
           set -euo pipefail
-          if [[ -f cloud-kit/SMWRecomp_EmuELEC48_GLES2_Kit.zip ]]; then
-            KIT="$GITHUB_WORKSPACE/cloud-kit/SMWRecomp_EmuELEC48_GLES2_Kit.zip"
+          mkdir -p "$RUNNER_TEMP/kit"
+          if [[ -f cloud-kit/EmuELEC48_Kit.tar.xz.b64 ]]; then
+            base64 --decode cloud-kit/EmuELEC48_Kit.tar.xz.b64 > "$RUNNER_TEMP/EmuELEC48_Kit.tar.xz"
+            echo 'e1bb6235bd584df602f5850884937c4f9486f1b7d4cac49309f7c5844a516030  '"$RUNNER_TEMP/EmuELEC48_Kit.tar.xz" | sha256sum --check
+            tar -xJf "$RUNNER_TEMP/EmuELEC48_Kit.tar.xz" -C "$RUNNER_TEMP/kit"
+            echo 'Embedded cloud kit extracted; no manual upload necessary.' >> "$GITHUB_STEP_SUMMARY"
+          elif [[ -f cloud-kit/SMWRecomp_EmuELEC48_GLES2_Kit.zip ]]; then
+            unzip -q cloud-kit/SMWRecomp_EmuELEC48_GLES2_Kit.zip -d "$RUNNER_TEMP/kit"
           elif [[ -f SMWRecomp_EmuELEC48_GLES2_Kit.zip ]]; then
-            KIT="$GITHUB_WORKSPACE/SMWRecomp_EmuELEC48_GLES2_Kit.zip"
+            unzip -q SMWRecomp_EmuELEC48_GLES2_Kit.zip -d "$RUNNER_TEMP/kit"
           else
             echo 'present=false' >> "$GITHUB_OUTPUT"
-            echo 'Kit nao carregado. Envie o ZIP para cloud-kit/ usando o navegador GitHub.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Kit missing. Reinstall cloud-kit/EmuELEC48_Kit.tar.xz.b64 from GitHub commit.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           echo 'present=true' >> "$GITHUB_OUTPUT"
-          mkdir -p "$RUNNER_TEMP/kit"
-          unzip -q "$KIT" -d "$RUNNER_TEMP/kit"
           test -f "$RUNNER_TEMP/kit/tools/apply_emuelec.py"
           test -f "$RUNNER_TEMP/kit/ports/gles2_renderer.c"
           echo 'Port kit found.' >> "$GITHUB_STEP_SUMMARY"
