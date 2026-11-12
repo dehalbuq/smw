@@ -1,0 +1,145 @@
+name: "SMW Recomp EmuELEC 4.8 ARM64 - Cloud"
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "audit (sem ROM) ou full (compilar ARM64)"
+        required: true
+        type: choice
+        options: [audit, full]
+        default: audit
+      source_ref:
+        description: "Branch/SHA do mstan/SuperMarioWorldRecomp"
+        type: string
+        default: main
+  push:
+    paths:
+      - ".github/workflows/smw-recomp-emuelec48-cloud.yml"
+      - "cloud-kit/**"
+permissions:
+  contents: read
+jobs:
+  arm64-cloud:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 110
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clonar motor original e submodulos
+        env:
+          SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || 'main' }}
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/mstan/SuperMarioWorldRecomp.git "$RUNNER_TEMP/smw-upstream"
+          cd "$RUNNER_TEMP/smw-upstream"
+          git checkout "$SOURCE_REF"
+          git submodule update --init --recursive
+          test -f CMakeLists.txt && test -f tools/regen.sh && test -f recomp-ui/recomp_ui.cmake
+          grep -q 'SMW Adaptive Widescreen' README.md
+          grep -q 'SMW_BUILD_COOP' CMakeLists.txt
+          grep -q 'SNESRECOMP_SDL_BACKEND' snesrecomp/runner/runner.cmake
+          echo "Source revision: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Widescreen, co-op, SDL selection and submodules found." >> "$GITHUB_STEP_SUMMARY"
+      - name: Localizar kit de port SDL2/GLES2
+        id: kit
+        run: |
+          set -euo pipefail
+          if [[ -f cloud-kit/SMWRecomp_EmuELEC48_GLES2_Kit.zip ]]; then
+            KIT="$GITHUB_WORKSPACE/cloud-kit/SMWRecomp_EmuELEC48_GLES2_Kit.zip"
+          elif [[ -f SMWRecomp_EmuELEC48_GLES2_Kit.zip ]]; then
+            KIT="$GITHUB_WORKSPACE/SMWRecomp_EmuELEC48_GLES2_Kit.zip"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+            echo 'Kit nao carregado. Envie o ZIP para cloud-kit/ usando o navegador GitHub.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo 'present=true' >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/kit"
+          unzip -q "$KIT" -d "$RUNNER_TEMP/kit"
+          test -f "$RUNNER_TEMP/kit/tools/apply_emuelec.py"
+          test -f "$RUNNER_TEMP/kit/ports/gles2_renderer.c"
+          echo 'Port kit found.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Aplicar adaptacao somente no checkout temporario
+        if: steps.kit.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/smw-upstream"
+          cp -a "$RUNNER_TEMP/kit/tools/." ./tools/
+          cp -a "$RUNNER_TEMP/kit/ports" ./ports
+          python3 -m py_compile tools/apply_emuelec.py
+          python3 tools/apply_emuelec.py
+          grep -q 'SMW_EMUELEC_GLES2' CMakeLists.txt
+          grep -q 'IMGUI_IMPL_OPENGL_ES2' recomp-ui/recomp_ui.cmake
+          grep -q 'SmwDestination' src/port/gles2_renderer.c
+          echo 'Patches GLES2 + widescreen applied.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Impedir compilacao sem kit
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && steps.kit.outputs.present != 'true' }}
+        run: |
+          echo 'Kit ausente: carregue SMWRecomp_EmuELEC48_GLES2_Kit.zip no repositorio.' >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+      - name: Instalar dependencias ARM64
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && steps.kit.outputs.present == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config binutils             libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev libfreetype6-dev             libasound2-dev libssl-dev libcurl4-openssl-dev libzstd-dev             python3 python3-pip python3-venv rustc cargo
+      - name: Receber ROM propria de repositorio PRIVADO
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && steps.kit.outputs.present == 'true' }}
+        env:
+          ROM_REPO: ${{ secrets.SMW_PRIVATE_ROM_REPO }}
+          ROM_TOKEN: ${{ secrets.SMW_PRIVATE_ROM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ROM_REPO" || -z "$ROM_TOKEN" ]]; then
+            echo 'Defina os secrets SMW_PRIVATE_ROM_REPO e SMW_PRIVATE_ROM_TOKEN.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          umask 077
+          export GH_TOKEN="$ROM_TOKEN"
+          gh api "repos/$ROM_REPO/contents/smw.sfc" --jq '.content' | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/smw-upstream/smw.sfc"
+          ROM_SHA=$(sha256sum "$RUNNER_TEMP/smw-upstream/smw.sfc" | cut -d' ' -f1)
+          if [[ "$ROM_SHA" != '0838e531fe22c077528febe14cb3ff7c492f1f5fa8de354192bdff7137c27f5b' ]]; then
+            echo 'SHA256 da ROM diverge da versao USA exigida pelo upstream.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo 'ROM proprietaria validada; nao sera publicada.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Gerar C e compilar ARM64 SDL2 GLES2
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && steps.kit.outputs.present == 'true' }}
+        env:
+          SMW_ALLOW_UNVERIFIED_ABI: "1"
+          SMW_BUNDLE_FALCON_CACHE_HELPER: "OFF"
+          SMW_NETPLAY_ICE: "OFF"
+          JOBS: "4"
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/smw-upstream"
+          bash tools/build_emuelec.sh 2>&1 | tee "$RUNNER_TEMP/smw-build.log"
+      - name: Relatorio de ABI AArch64
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && steps.kit.outputs.present == 'true' && success() }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/smw-upstream"
+          file build-emuelec-gles2/SuperMarioWorldSNESRecomp > "$RUNNER_TEMP/smw-abi-report.txt"
+          readelf -h build-emuelec-gles2/SuperMarioWorldSNESRecomp >> "$RUNNER_TEMP/smw-abi-report.txt"
+          readelf -d build-emuelec-gles2/SuperMarioWorldSNESRecomp >> "$RUNNER_TEMP/smw-abi-report.txt"
+          objdump -T build-emuelec-gles2/SuperMarioWorldSNESRecomp | grep -E 'GLIBC_[0-9]' | sort -u >> "$RUNNER_TEMP/smw-abi-report.txt" || true
+          cp "$RUNNER_TEMP/smw-abi-report.txt" build-emuelec-gles2/EmuELEC48-Ports/SMWRecomp/ABI-REPORT.txt
+          echo 'Candidate AArch64 created. EmuELEC 4.8 ABI compatibility still unverified.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Apagar ROM ao encerrar
+        if: always()
+        run: rm -f "$RUNNER_TEMP/smw-upstream/smw.sfc"
+      - name: Enviar ZIP de candidato ARM64
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMWRecomp-ARM64-SDL2-GLES2-ABI-UNVERIFIED
+          path: ${{ runner.temp }}/smw-upstream/build-emuelec-gles2/EmuELEC48-Ports/
+          if-no-files-found: error
+      - name: Log da falha (quando houver)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMWRecomp-ARM64-build-log
+          path: ${{ runner.temp }}/smw-build.log
+          if-no-files-found: ignore
