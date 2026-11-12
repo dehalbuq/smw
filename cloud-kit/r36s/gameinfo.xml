@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gameList>
+  <game>
+    <path>./SMW Recomp R36S.sh</path>
+    <name>SMW Recomp R36S (Experimental)</name>
+    <desc>Separate experimental native AArch64 SDL2/OpenGL ES2 static recompilation of Super Mario World. You must provide your own legally obtained Super Mario World USA ROM. Does not replace an existing SMW port.</desc>
+    <genre>Platformer</genre>
+  </game>
+</gameList>
