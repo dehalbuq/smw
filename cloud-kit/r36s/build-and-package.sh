@@ -7,6 +7,7 @@ SOURCE_DIR="${1:-/src}"
 PORT_CODE="${2:-/port-code}"
 OUTPUT_ROOT="${3:-/output}"
 cd "$SOURCE_DIR"
+git config --global --add safe.directory "$SOURCE_DIR"
 
 test "$(uname -m)" = aarch64
 test "$(getconf GNU_LIBC_VERSION)" = "glibc 2.28"
