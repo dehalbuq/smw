@@ -88,10 +88,34 @@ jobs:
           grep -q 'IMGUI_IMPL_OPENGL_ES2' recomp-ui/recomp_ui.cmake
           grep -q 'SmwDestination' src/port/gles2_renderer.c
           echo 'Patches GLES2 + widescreen applied.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Instalar runtime de testes GLES2 AArch64
+        if: steps.kit.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential binutils pkg-config xvfb xauth \
+            libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev
+      - name: Testar GLES2 real no ARM64 (sem ROM)
+        if: steps.kit.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          bash "$GITHUB_WORKSPACE/cloud-kit/tests/run_gles2_smoke.sh" \
+            "$RUNNER_TEMP/smw-upstream" 2>&1 | tee "$RUNNER_TEMP/gles2-smoke.log"
+          grep -q '^PASS SMW_GLES2_SMOKE' "$RUNNER_TEMP/gles2-smoke.log"
+          echo 'ROM-free ARM64 GLES2 pixel validation: PASS.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Anexar resultado do teste GLES2
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smw-gles2-arm64-smoke-log
+          path: ${{ runner.temp }}/gles2-smoke.log
+          if-no-files-found: ignore
       - name: Impedir compilacao sem kit
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && steps.kit.outputs.present != 'true' }}
         run: |
-          echo 'Kit ausente: carregue SMWRecomp_EmuELEC48_GLES2_Kit.zip no repositorio.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Kit ausente: arquivo embutido cloud-kit/EmuELEC48_Kit.tar.xz.b64 faltando.' >> "$GITHUB_STEP_SUMMARY"
           exit 1
       - name: Instalar dependencias ARM64
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'full' && steps.kit.outputs.present == 'true' }}
