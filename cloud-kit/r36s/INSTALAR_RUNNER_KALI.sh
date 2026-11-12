@@ -51,13 +51,13 @@ command -v cargo >/dev/null || fail "cargo/rustc indisponiveis"
 echo
 echo "== Autorizar GitHub na VM (somente para registrar o runner) =="
 # NUNCA manter uma credencial gh permanente no usuario que executara workflows.
-# A sessao gh sera armazenada em uma pasta temporaria e eliminada na saida.
+# A sessao gh sera armazenada sem keyring em pasta temporaria, eliminada na saida.
 GH_CONFIG_DIR="$(mktemp -d)"
 chmod 700 "$GH_CONFIG_DIR"
 export GH_CONFIG_DIR
 trap 'rm -rf "$GH_CONFIG_DIR"' EXIT
 echo "Complete a autorizacao pelo navegador. Nao envie token ou senha para o chat."
-gh auth login --hostname github.com --web --git-protocol https --scopes "repo"
+gh auth login --hostname github.com --web --git-protocol https --scopes "repo" --insecure-storage
 gh api "repos/$REPO" --jq '.full_name' | grep -Fx "$REPO" >/dev/null \
   || fail "Conta gh sem acesso ao repositorio privado"
 
