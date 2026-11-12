@@ -1,5 +1,21 @@
 # SMW Recomp — build ARM64 SDL2/GLES2 100% no GitHub Actions
 
+## Progresso confirmado em nuvem — 12/11/2026
+
+**GLES2 estrito / renderizador real:** [GitHub Actions #43240431294](https://github.com/dehalbuq/smw/actions/runs/43240431294) — **PASS**.
+
+- Arquitetura: ELF AArch64 (runner Ubuntu 24.04 ARM).
+- API: `OpenGL ES 2.0 Mesa 25.2.8` usando `MESA_GLES_VERSION_OVERRIDE=2.0` (teste de perfil compatível com GLES2; não é teste de driver EmuELEC).
+- Código de `src/port/gles2_renderer.c` compilado com `-Wall -Wextra -Werror`.
+- Criou janela SDL2/EGL; compilou shaders, desenhou 3 quadros, verificou conversão BGRA, viewport, bordas e atualização de textura dinâmica com readback `glReadPixels`.
+- Corrigida inicialização explícita do campo opcional `RendererFuncs.Reconfigure`.
+- As contas de aspect ratio e spawning do motor real **não** foram exercitadas neste teste isolado: usamos stub de `SmwDestination`; a lógica do widescreen original permanece intacta.
+- O jogo completo **ainda não foi compilado**: necessita da ROM original legalmente adquirida e do workflow `full`.
+- A certificação binária EmuELEC 4.8 (glibc, EGL, SDL2 do firmware e driver GPU do aparelho) permanece pendente.
+
+O código do port `dehalbuq/smw` voltado ao R36S não foi alterado; apenas `.github/workflows/`, `cloud-kit/` e este documento foram adicionados/atualizados.
+
+
 Este laboratório fica **isolado** do motor snesrev e dos releases do R36S já existentes neste repositório. O workflow clona *mstan/SuperMarioWorldRecomp* em um diretório temporário e aplica o kit somente ali.
 
 ## Usar sem Kali, WSL ou compilação local
