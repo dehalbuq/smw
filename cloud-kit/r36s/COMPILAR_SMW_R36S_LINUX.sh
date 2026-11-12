@@ -102,7 +102,7 @@ command -v cargo >/dev/null || { [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.c
 command -v cargo >/dev/null || { echo "Rust nao encontrado; execute preparar." >&2; exit 3; }
 
 WORKDIR="$HOME/SMWRecomp-R36S-Local"
-if [[ -n "$SMW_WORKDIR" ]]; then WORKDIR="$SMW_WORKDIR"; fi
+if [[ -n "${SMW_WORKDIR:-}" ]]; then WORKDIR="$SMW_WORKDIR"; fi
 mkdir -p "$WORKDIR" "$WORKDIR/logs" "$WORKDIR/saida"
 WORKDIR="$(realpath "$WORKDIR")"
 SOURCE="$WORKDIR/SuperMarioWorldRecomp"
@@ -169,7 +169,7 @@ trap cleanup EXIT
 # Regenerate only on first build unless explicit FORCAR_REGEN=1.
 REGENERATE=0
 if ! compgen -G "$SOURCE/src/gen/*.c" >/dev/null; then REGENERATE=1; fi
-if [[ "$FORCAR_REGEN" == "1" ]]; then REGENERATE=1; fi
+if [[ "${FORCAR_REGEN:-0}" == "1" ]]; then REGENERATE=1; fi
 if (( REGENERATE == 1 )); then
   echo "Gerando codigo C da CPU 65816 (host local)..."
   umask 077
@@ -198,7 +198,7 @@ sudo docker build --platform linux/arm64 \
 sudo docker run --rm --platform linux/arm64 smw-r36s-buster:local \
   sh -c 'test "$(uname -m)" = aarch64 && test "$(getconf GNU_LIBC_VERSION)" = "glibc 2.28"'
 
-if [[ "$JOBS" =~ ^[1-9][0-9]*$ ]]; then
+if [[ "${JOBS:-}" =~ ^[1-9][0-9]*$ ]]; then
   PARALLEL="$JOBS"
 else
   PARALLEL=2
@@ -216,6 +216,8 @@ sudo docker run --rm --platform linux/arm64 \
 
 test -f "$OUT/smwrecompr36s/SuperMarioWorldSNESRecomp"
 test -f "$OUT/SMW Recomp R36S.sh"
+# Docker writes as root; return ownership of build and package to local user.
+sudo chown -R "$(id -u):$(id -g)" "$OUT" "$SOURCE/build-r36s-gles2"
 grep -q "PASS R36S_PORTMASTER_PACKAGE" "$WORKDIR/logs/03-compilacao-r36s.txt"
 
 if find "$OUT" -type f \( -iname '*.sfc' -o -iname '*.smc' \) | grep -q .; then
