@@ -27,6 +27,20 @@ export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"
 export MAKEFLAGS="-j$JOBS"
 # Marks the build as R36S, not EmuELEC, in the runtime.
 sed -i 's/emuelec48-gles2/r36s-gles2-glibc228/' tools/build_emuelec.sh
+# The upstream renderer hook script uses pathlib.Path.write_text(newline=...),
+# introduced after Python 3.7. Debian Buster provides 3.7; Linux already writes LF.
+# Apply a precise, verified compatibility change only in the temporary checkout.
+python3 - <<'PY'
+from pathlib import Path
+p = Path("tools/apply_renderer_hooks.py")
+source = p.read_text(encoding="utf-8")
+before = "path.write_text(changed, encoding='utf-8', newline='\\n')"
+after = "path.write_text(changed, encoding='utf-8')"
+if source.count(before) != 1:
+    raise SystemExit("FAIL: renderer hook Python compatibility anchor changed")
+p.write_text(source.replace(before, after), encoding="utf-8")
+print("PASS: Python 3.7-compatible SMW renderer hooks")
+PY
 bash tools/build_emuelec.sh
 
 GAME_BIN="$SMW_BUILD_DIR/SuperMarioWorldSNESRecomp"
