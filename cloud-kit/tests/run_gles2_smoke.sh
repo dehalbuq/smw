@@ -60,7 +60,7 @@ EOF
 
 test -f "$SMW_SOURCE/src/port/gles2_renderer.c"
 pkg-config --exists sdl2
-cc -O2 -std=c11 -Wall -Wextra \
+cc -O2 -std=c11 -Wall -Wextra -Werror \
   -I"$TMP/stubs" -DSDL_GL_SwapWindow=smw_test_swap \
   "$SMW_SOURCE/src/port/gles2_renderer.c" \
   "$TEST_DIR/smw_gles2_smoke.c" \
@@ -71,6 +71,7 @@ readelf -h "$TMP/smw_gles2_smoke" | grep -E 'Machine:|Class:'
 if command -v xvfb-run >/dev/null 2>&1; then
   xvfb-run -a -s "-screen 0 1024x768x24" \
     env SDL_VIDEODRIVER=x11 LIBGL_ALWAYS_SOFTWARE=1 \
+      MESA_GLES_VERSION_OVERRIDE=2.0 SMW_TEST_REQUIRE_ES2=1 \
     timeout 40 "$TMP/smw_gles2_smoke"
 else
   echo "ERROR: xvfb-run is required for cloud GPU smoke" >&2
