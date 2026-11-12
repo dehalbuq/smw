@@ -84,6 +84,19 @@ jobs:
           cp -a "$RUNNER_TEMP/kit/ports" ./ports
           python3 -m py_compile tools/apply_emuelec.py
           python3 tools/apply_emuelec.py
+          # The upstream RendererFuncs ABI has an optional sixth Reconfigure slot.
+          # Set it explicitly to NULL to keep C11 -Werror builds clean.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("src/port/gles2_renderer.c")
+          s = p.read_text()
+          marker = "&renderer_begin_draw, &renderer_end_draw,"
+          if s.count(marker) != 1:
+              raise SystemExit("GLES2 renderer vtable anchor changed")
+          if marker + "\n      NULL," not in s:
+              s = s.replace(marker, marker + "\n      NULL,", 1)
+              p.write_text(s)
+          PY
           grep -q 'SMW_EMUELEC_GLES2' CMakeLists.txt
           grep -q 'IMGUI_IMPL_OPENGL_ES2' recomp-ui/recomp_ui.cmake
           grep -q 'SmwDestination' src/port/gles2_renderer.c
