@@ -1,0 +1,25 @@
+name: "R36S - validar instalador Kali SSH/runner (sem ROM)"
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "cloud-kit/r36s/INSTALAR_RUNNER_KALI.sh"
+      - ".github/workflows/r36s-kali-installer-check.yml"
+permissions:
+  contents: read
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax e restricao do runner privado
+        run: |
+          set -euo pipefail
+          SCRIPT=cloud-kit/r36s/INSTALAR_RUNNER_KALI.sh
+          bash -n "$SCRIPT"
+          grep -q 'REPO="dehalbuq/smw-rom-private"' "$SCRIPT"
+          grep -q 'LABEL="r36s-kali"' "$SCRIPT"
+          grep -q "GH_CONFIG_DIR=" "$SCRIPT"
+          grep -q 'sha256sum -c' "$SCRIPT"
+          grep -q 'svc.sh start' "$SCRIPT"
+          echo "PASS KALI_RUNNER_INSTALLER_STATIC_CHECK" >> "$GITHUB_STEP_SUMMARY"
