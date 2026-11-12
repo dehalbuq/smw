@@ -16,7 +16,7 @@
 #include "util.h"
 #include "config.h"
 
-SmwVideoSettings g_smw_video = { true };
+SmwVideoSettings g_smw_video = { .enabled = true };
 SmwViewport g_smw_viewport = { 0 };
 Config g_config = { false, false, NULL };
 static int g_geometry_calls = 0;
@@ -84,6 +84,8 @@ int main(void) {
   const char *gl_ver = (const char *)glGetString(GL_VERSION);
   if (!gl_ver || !strstr(gl_ver, "OpenGL ES")) fail("not OpenGL ES context");
   fprintf(stdout, "GL context: %s\n", gl_ver);
+  if (getenv("SMW_TEST_REQUIRE_ES2") && strncmp(gl_ver, "OpenGL ES 2.0", 13) != 0)
+    fail("GLES2-only Mesa profile not enforced");
   int out_w = 0, out_h = 0;
   renderer.GetOutputSize(&out_w, &out_h);
   if (out_w != 640 || out_h != 360) fail("drawable dimensions mismatch");
