@@ -1,0 +1,27 @@
+name: "R36S - validar diagnostico de hora do Kali"
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "cloud-kit/r36s/CORRIGIR_HORA_RUNNER_KALI.sh"
+      - ".github/workflows/r36s-kali-clock-check.yml"
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar bash, escopo e tratamento de relogio
+        run: |
+          set -euo pipefail
+          S=cloud-kit/r36s/CORRIGIR_HORA_RUNNER_KALI.sh
+          bash -n "$S"
+          grep -q 'server_epoch()' "$S"
+          grep -q 'https://api.github.com/' "$S"
+          grep -q 'timedatectl set-ntp true' "$S"
+          grep -q 'chronyc -a makestep' "$S"
+          grep -q 'RUNNER_KALI_ONLINE=PASS' "$S"
+          grep -q 'systemctl restart "$SERVICE"' "$S"
+          test "$(grep -c 'RECUPERAR_RUNNER_KALI.sh' "$S" || :)" = 0
+          echo "PASS KALI_CLOCK_DIAGNOSTIC_STATIC" >> "$GITHUB_STEP_SUMMARY"
