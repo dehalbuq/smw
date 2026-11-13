@@ -1,0 +1,27 @@
+name: "R36S - verificar recuperacao do runner Kali"
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "cloud-kit/r36s/RECUPERAR_RUNNER_KALI.sh"
+      - ".github/workflows/r36s-runner-recovery-check.yml"
+permissions:
+  contents: read
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar sintaxe e escopo do reparo sem executar registro
+        run: |
+          set -euo pipefail
+          SCRIPT=cloud-kit/r36s/RECUPERAR_RUNNER_KALI.sh
+          bash -n "$SCRIPT"
+          grep -q 'REPO="dehalbuq/smw-rom-private"' "$SCRIPT"
+          grep -q 'RUNNER_LABEL="r36s-kali"' "$SCRIPT"
+          grep -q 'gh api -X POST' "$SCRIPT"
+          grep -q 'GH_CONFIG_DIR=' "$SCRIPT"
+          grep -q 'sudo ./svc.sh uninstall' "$SCRIPT"
+          grep -q 'sudo ./svc.sh start' "$SCRIPT"
+          grep -q 'RUNNER_KALI_RECADASTRADO_ONLINE=PASS' "$SCRIPT"
+          echo 'PASS KALI_RECOVERY_SCRIPT_STATIC_CHECK' >> "$GITHUB_STEP_SUMMARY"
