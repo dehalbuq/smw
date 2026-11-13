@@ -1,5 +1,17 @@
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
+## Kali compilacao cruzada passou objetos mas falhou no linker C++17 (12/11/2026)
+
+- Workflow privado [#43343110703](https://github.com/dehalbuq/smw-rom-private/actions/runs/43343110703): `completed/failure` **na etapa de ligacao final** (Ninja), apos validar ROM, Docker/QEMU, Rust, toolchain GCC cross, aplicar patches de Python/SDL, e **compilar todos os objetos C/C++**.
+- Diagnostico do log: 226 linhas `undefined reference to`, **todas** em `std::filesystem` (mod_runtime.cpp, launcher_imgui.cpp, snes_text_xlate.cpp etc); GCC cross 8 do Debian Buster exige `-lstdc++fs` no link final, depois dos objetos.
+- Patch no [`build-and-package.sh`](../cloud-kit/r36s/build-and-package.sh): acrescentar `target_link_libraries(SuperMarioWorldSNESRecomp PRIVATE stdc++fs)` ao CMakeLists do **checkout temporario** apenas no modo x86_64 / GCC < 9. Commit `15c1eb09fcf8c10bb0dce3c960f301eb8a3ad08d`; nao alterar upstream publico.
+- Teste de ligacao C++17 na toolchain sem ROM adicionado em
+  [`r36s-cross-buster-preflight.yml`](../.github/workflows/r36s-cross-buster-preflight.yml),
+  commit `fb4029738a8d24af986c1e975a6a081696a5b148`. Conferir status antes de declarar PASS; os testes anteriores #43343324382 compilaram 15 modulos, mas **nao** fizeram a ligacao completa C++17 com filesystem.
+- Proximo passo: valida-lo e rerodar `#43343110703` no runner privado.
+  A ROM e os gerados da CPU devem permanecer apenas no workflow privado.
+  Nao declarar ZIP pronto sem `completed:success` e artefato valido.
+
 ## Falha apos recadastro aceito: investigar hora da VM (12/11/2026)
 
 Log do usuario (nao publicar codigos de autenticacao):
