@@ -39,6 +39,8 @@ __attribute__((visibility("default"))) int SDL_main(int argc, char **argv) {
     setenv("SMW_RENDER_ASPECT", "16:9", 1);
     setenv("SMW_ENEMY_SPAWN", "adaptive", 1);
     setenv("SNESRECOMP_NO_LAUNCHER", "1", 1);
+    /* Keep debug CPU trace memory bounded on low-RAM Android TVs. */
+    setenv("SNESRECOMP_CPU_TRACE_RING_ENTRIES", "131072", 1);
 
     char rom[2048];
     if (snprintf(rom, sizeof(rom), "%s/smw.sfc", base) >= (int)sizeof(rom))
