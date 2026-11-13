@@ -59,6 +59,7 @@ if(ANDROID)
     set(SDL_TESTS OFF CACHE BOOL "" FORCE)
     set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
     add_subdirectory("$ENV{SMW_ANDROID_SDL2}" "${CMAKE_BINARY_DIR}/android-sdl2")
+    list(PREPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 endif()"""
     content = replace_once(content, project_old, project_new, "SDL2 bootstrap")
 
@@ -70,6 +71,20 @@ if(ANDROID)
     target_link_libraries(SuperMarioWorldSNESRecomp PRIVATE android log EGL GLESv2)
 endif()"""
     content = replace_once(content, target_anchor, target_new, "JNI target name")
+
+    # The bundled SDL2 defines SDL2::SDL2 target but does not install
+    # a package config during the same CMake configure invocation.
+    # Make find_package(SDL2) reuse that target without host libraries.
+    moddir = source / "cmake"
+    moddir.mkdir(exist_ok=True)
+    findmod = moddir / "FindSDL2.cmake"
+    if findmod.exists():
+        raise SystemExit("FAIL: original source already contains FindSDL2.cmake")
+    findmod.write_text("""if(NOT TARGET SDL2::SDL2)
+  message(FATAL_ERROR "Android SDL2 native target was not created")
+endif()
+set(SDL2_FOUND TRUE)
+""", encoding="utf-8")
 
     cfile.write_text(content, encoding="utf-8")
     shutil.copy2(port / "android-tv/app/src/main/cpp/android_entry.c",
