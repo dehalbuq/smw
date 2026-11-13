@@ -27,19 +27,31 @@ export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"
 export MAKEFLAGS="-j$JOBS"
 # Marks the build as R36S, not EmuELEC, in the runtime.
 sed -i 's/emuelec48-gles2/r36s-gles2-glibc228/' tools/build_emuelec.sh
-# The upstream renderer hook script uses pathlib.Path.write_text(newline=...),
-# introduced after Python 3.7. Debian Buster provides 3.7; Linux already writes LF.
-# Apply a precise, verified compatibility change only in the temporary checkout.
+# Debian Buster ships Python 3.7. Path.write_text(newline=...) was added
+# much later; the SNES renderer and native co-op hook tools both use it.
+# Patch ONLY these known build-time calls in the throwaway upstream checkout.
+# Write_text emits LF unchanged on Linux without the newline argument.
 python3 - <<'PY'
 from pathlib import Path
-p = Path("tools/apply_renderer_hooks.py")
-source = p.read_text(encoding="utf-8")
-before = "path.write_text(changed, encoding='utf-8', newline='\\n')"
-after = "path.write_text(changed, encoding='utf-8')"
-if source.count(before) != 1:
-    raise SystemExit("FAIL: renderer hook Python compatibility anchor changed")
-p.write_text(source.replace(before, after), encoding="utf-8")
-print("PASS: Python 3.7-compatible SMW renderer hooks")
+fixes = {
+    "tools/apply_renderer_hooks.py": (
+        "path.write_text(changed, encoding='utf-8', newline='\\n')",
+        "path.write_text(changed, encoding='utf-8')",
+    ),
+    "tools/apply_coop_hooks.py": (
+        "path.write_text(text, encoding='utf-8', newline='\\n')",
+        "path.write_text(text, encoding='utf-8')",
+    ),
+}
+for filename, (before, after) in fixes.items():
+    p = Path(filename)
+    source = p.read_text(encoding="utf-8")
+    if source.count(before) != 1:
+        raise SystemExit("FAIL: Python 3.7 compatibility anchor changed: " + filename)
+    patched = source.replace(before, after)
+    compile(patched, filename, 'exec')
+    p.write_text(patched, encoding="utf-8")
+    print("PASS Python 3.7 hook compatibility:", filename)
 PY
 bash tools/build_emuelec.sh
 
