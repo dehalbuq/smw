@@ -11,8 +11,23 @@ git config --global --add safe.directory "$SOURCE_DIR"
 git config --global --add safe.directory "$SOURCE_DIR/snesrecomp"
 git config --global --add safe.directory "$SOURCE_DIR/recomp-ui"
 
-test "$(uname -m)" = aarch64
 test "$(getconf GNU_LIBC_VERSION)" = "glibc 2.28"
+case "$(uname -m)" in
+  x86_64)
+    # The compiler runs NATIVE on x64; only its OUTPUT is ARM64.
+    command -v aarch64-linux-gnu-gcc >/dev/null
+    command -v aarch64-linux-gnu-g++ >/dev/null
+    export EMU_TOOLCHAIN_FILE="$PORT_CODE/cloud-kit/r36s/toolchain-aarch64-buster.cmake"
+    test -f "$EMU_TOOLCHAIN_FILE"
+    export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+    export PKG_CONFIG_SYSROOT_DIR=/
+    echo "PASS R36S_BUILD_MODE=NATIVE_X86_TO_AARCH64_CROSS"
+    ;;
+  aarch64)
+    echo "PASS R36S_BUILD_MODE=LEGACY_QEMU_ARM64"
+    ;;
+  *) echo "Unsupported build host architecture" >&2; exit 3 ;;
+esac
 test ! -e ./smw.sfc
 compgen -G "src/gen/*.c" >/dev/null || { echo 'FAIL: no generated C; run regen on host first' >&2; exit 2; }
 test -f src/port/gles2_renderer.c
@@ -53,7 +68,33 @@ for filename, (before, after) in fixes.items():
     p.write_text(patched, encoding="utf-8")
     print("PASS Python 3.7 hook compatibility:", filename)
 PY
+# SDL_OpenURL() was introduced in SDL 2.0.14; Buster SDL2 is 2.0.9.
+# Keep the click-to-open behavior on newer SDL2 while compiling safely on R36S.
+# On old embedded SDL, the UI can show an unavailable-link notification.
+python3 - <<'PY'
+from pathlib import Path
+p = Path("recomp-ui/src/common/backends/imgui/launcher_imgui.cpp")
+s = p.read_text(encoding="utf-8")
+before = "const bool opened = SDL_OpenURL(url.c_str()) == 0;"
+after = """#if SDL_VERSION_ATLEAST(2, 0, 14)
+                                     const bool opened = SDL_OpenURL(url.c_str()) == 0;
+#else
+                                     const bool opened = false; // no URL handler in SDL 2.0.9
+#endif"""
+if s.count(before) != 1:
+    raise SystemExit("FAIL: SDL_OpenURL API anchor changed in recomp-ui")
+p.write_text(s.replace(before, after), encoding="utf-8")
+print("PASS: SDL_OpenURL compatibility for SDL2 older than 2.0.14")
+PY
+if command -v ccache >/dev/null; then
+  echo "CCACHE before build:"
+  ccache -s || true
+fi
 bash tools/build_emuelec.sh
+if command -v ccache >/dev/null; then
+  echo "CCACHE after build:"
+  ccache -s || true
+fi
 
 GAME_BIN="$SMW_BUILD_DIR/SuperMarioWorldSNESRecomp"
 test -f "$GAME_BIN"
