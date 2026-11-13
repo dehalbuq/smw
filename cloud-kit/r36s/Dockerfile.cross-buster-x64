@@ -1,0 +1,33 @@
+# Runs NATIVE x86_64 compilers on Kali/VM, emits ARM64 binaries.
+# GCC cross toolchain and ARM64 -dev packages from Debian Buster glibc 2.28.
+# Does NOT run ARM64 gcc through QEMU; QEMU is reserved for optional target smoke tests.
+FROM --platform=linux/amd64 debian:buster
+ENV DEBIAN_FRONTEND=noninteractive
+RUN set -eux; \
+    dpkg --add-architecture arm64; \
+    printf 'deb [arch=amd64,arm64] http://archive.debian.org/debian buster main\ndeb [arch=amd64,arm64] http://archive.debian.org/debian-security buster/updates main\n' > /etc/apt/sources.list; \
+    printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99buster-archive; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+      build-essential make ninja-build pkg-config ccache \
+      git python3 python3-pip python3-setuptools python3-wheel \
+      file binutils ca-certificates bash curl xz-utils \
+      libc6-dev:arm64 libgl1-mesa-dev:arm64 libegl1-mesa-dev:arm64 \
+      libgles2-mesa-dev:arm64 libglvnd-dev:arm64 libsdl2-dev:arm64 \
+      libfreetype6-dev:arm64 libasound2-dev:arm64 libssl-dev:arm64 \
+      libcurl4-openssl-dev:arm64 libzstd-dev:arm64 zlib1g-dev:arm64; \
+    rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    python3 -m pip install --no-cache-dir --upgrade 'pip<24' 'setuptools<69'; \
+    python3 -m pip install --no-cache-dir 'cmake==3.25.2'; \
+    test "$(uname -m)" = x86_64; \
+    test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.28'; \
+    cmake --version; \
+    aarch64-linux-gnu-gcc --version; \
+    PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+      pkg-config --exists sdl2 egl glesv2; \
+    echo PASS_NATIVE_CROSS_AARCH64_BUSTER
+ENV PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+    PKG_CONFIG_SYSROOT_DIR=/
+WORKDIR /src
