@@ -69,6 +69,7 @@ endif()"""
 if(ANDROID)
     set_target_properties(SuperMarioWorldSNESRecomp PROPERTIES OUTPUT_NAME main)
     target_link_libraries(SuperMarioWorldSNESRecomp PRIVATE android log EGL GLESv2)
+    target_include_directories(SuperMarioWorldSNESRecomp PRIVATE "$ENV{SMW_ANDROID_SDL2}/include")
 endif()"""
     content = replace_once(content, target_anchor, target_new, "JNI target name")
 
