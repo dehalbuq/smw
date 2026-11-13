@@ -18,6 +18,7 @@ case "$(uname -m)" in
     command -v aarch64-linux-gnu-gcc >/dev/null
     command -v aarch64-linux-gnu-g++ >/dev/null
     export EMU_TOOLCHAIN_FILE="$PORT_CODE/cloud-kit/r36s/toolchain-aarch64-buster.cmake"
+    export CMAKE_GENERATOR=Ninja
     test -f "$EMU_TOOLCHAIN_FILE"
     export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
     export PKG_CONFIG_SYSROOT_DIR=/
