@@ -1,5 +1,48 @@
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
+## Falha apos recadastro aceito: investigar hora da VM (12/11/2026)
+
+Log do usuario (nao publicar codigos de autenticacao):
+- `gh auth login` validou login;
+- `config.sh --replace` respondeu `Successfully replaced the runner`;
+- `svc.sh start` deixou listener ativo apenas ~3s;
+- apos `Connected to GitHub`, `Failed to create a session. The runner registration has been deleted from the server`;
+- GitHub CLI retornou runner `kali-r36s-kali: offline` em 5 consultas.
+
+**Nova hipotese prioritaria: DESVIO DE RELOGIO (CLOCK SKEW), nao exclusao real.**
+Problema confirmado em issues oficiais do projeto:
+- https://github.com/actions/runner/issues/4648 (2026; Linux systemd e NTP tardio)
+- https://github.com/actions/runner/issues/2967 (relatos de correção de hora em VMs)
+- https://github.com/orgs/community/discussions/50255
+Tokens OAuth com horarios errados produzem exatamente o texto enganoso.
+Nao deduzir desvio apenas pelo timezone EST; comparar timestamps UTC
+convertidos em epoch (fusos diferentes sao validos).
+
+**Script preparado e validado sintaticamente**
+[`CORRIGIR_HORA_RUNNER_KALI.sh`](../cloud-kit/r36s/CORRIGIR_HORA_RUNNER_KALI.sh);
+[CI #43346875007](https://github.com/dehalbuq/smw/actions/runs/43346875007) PASS.
+
+No Kali, como `smwrunner`:
+```bash
+curl -fL https://raw.githubusercontent.com/dehalbuq/smw/main/cloud-kit/r36s/CORRIGIR_HORA_RUNNER_KALI.sh -o CORRIGIR_HORA_RUNNER_KALI.sh
+bash CORRIGIR_HORA_RUNNER_KALI.sh
+```
+
+Script calcula desvio entre UTC Kali e cabecalho HTTPS Date de api.github.com.
+Se >30 segundos, aciona NTP via timedatectl/chrony, testa novamente e so
+entao reinicia o servico existente, SEM novo login GitHub ou re-registro.
+Retorna resumo seguro `TIME_DRIFT_SECONDS`, `RUNNER_SYSTEMD_ACTIVE`,
+`RUNNER_KALI_ONLINE`, e indicadores resumidos de diagnostico OAuth.
+Se desvio >30 persistir, corrigir hora do **Windows host** e Guest Additions
+VirtualBox, ou verificar acesso NTP; nao expor credentials/OTP nem dump cru.
+
+**Observacao:** o build privado #43343110703 ainda estava `queued` na
+ultima consulta. Nao afirmar que o runner foi corrigido ou que o ZIP
+foi gerado. Se clock skew nao for causa, proxima investigacao:
+conflito de identidade duplicada (`--replace`), recursos do GitHub
+API `repos/dehalbuq/smw-rom-private/actions/runners`, diagnosticos
+`_diag/Runner_*.log` (sanitizados), registro com nome unico.
+
 ## Recuperacao do runner Kali com registro removido (12/11/2026)
 
 O usuario compartilhou `systemd` mostrando que a VM conecta ao GitHub,
