@@ -1,4 +1,4 @@
-name: "SMW Android TV - Engine ARM64 NDK + SDL2 adapter PRECHECK"
+name: "SMW Android TV - Engine ARM64 GLES2 header PRECHECK"
 on:
   workflow_dispatch:
   push:
