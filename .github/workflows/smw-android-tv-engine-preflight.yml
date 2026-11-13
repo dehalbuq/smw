@@ -53,7 +53,7 @@ jobs:
           s=p.read_text()
           anchor='&renderer_begin_draw, &renderer_end_draw,'
           if s.count(anchor)!=1: raise SystemExit('Renderer vtable drift')
-          p.write_text(s.replace(anchor,anchor+'\\n      NULL,',1))
+          p.write_text(s.replace(anchor, anchor + chr(10) + '      NULL,', 1))
           PY
           python3 "$GITHUB_WORKSPACE/android-tv/scripts/prepare-game.py" \
             --source "$RUNNER_TEMP/smw-android-source" --port "$GITHUB_WORKSPACE"
