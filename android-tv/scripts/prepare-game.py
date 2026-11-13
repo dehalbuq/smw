@@ -44,6 +44,33 @@ def main() -> None:
     endif()
 """
     content = replace_once(content, before, after, "native main shared library")
+    # Original engine uses CMAKE_SOURCE_DIR extensively for its pinned
+    # submodules and game files. Configure game as TOP-LEVEL rather than
+    # add_subdirectory() from the Android wrapper; create SDL2 target first.
+    project_old = "project(SuperMarioWorldSNESRecomp C)"
+    project_new = """project(SuperMarioWorldSNESRecomp C)
+if(ANDROID)
+    if(NOT EXISTS "$ENV{SMW_ANDROID_SDL2}/CMakeLists.txt")
+        message(FATAL_ERROR "SMW_ANDROID_SDL2 must identify SDL2 Android source")
+    endif()
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "" FORCE)
+    set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+    set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+    add_subdirectory("$ENV{SMW_ANDROID_SDL2}" "${CMAKE_BINARY_DIR}/android-sdl2")
+endif()"""
+    content = replace_once(content, project_old, project_new, "SDL2 bootstrap")
+
+    target_anchor = """smw_add_recomp_target(SuperMarioWorldSNESRecomp
+    "${SMW_STOCK_GEN_SOURCES}")"""
+    target_new = target_anchor + """
+if(ANDROID)
+    set_target_properties(SuperMarioWorldSNESRecomp PROPERTIES OUTPUT_NAME main)
+    target_link_libraries(SuperMarioWorldSNESRecomp PRIVATE android log EGL GLESv2)
+endif()"""
+    content = replace_once(content, target_anchor, target_new, "JNI target name")
+
     cfile.write_text(content, encoding="utf-8")
     shutil.copy2(port / "android-tv/app/src/main/cpp/android_entry.c",
                  source / "src/port/android_entry.c")
