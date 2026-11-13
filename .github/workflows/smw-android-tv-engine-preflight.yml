@@ -1,4 +1,4 @@
-name: "SMW Android TV - Real Engine ARM64 NDK Preflight SEM ROM"
+name: "SMW Android TV - Engine ARM64 NDK + SDL2 adapter PRECHECK"
 on:
   workflow_dispatch:
   push:
