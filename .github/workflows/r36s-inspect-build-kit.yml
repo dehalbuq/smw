@@ -1,0 +1,24 @@
+name: "R36S - inspecionar build script SDL2/GLES2 (sem ROM)"
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/r36s-inspect-build-kit.yml"
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar extracao e imprimir apenas script de compilacao
+        run: |
+          set -euo pipefail
+          base64 --decode cloud-kit/EmuELEC48_Kit.tar.xz.b64 > /tmp/kit.tar.xz
+          echo "e1bb6235bd584df602f5850884937c4f9486f1b7d4cac49309f7c5844a516030  /tmp/kit.tar.xz" | sha256sum -c -
+          mkdir -p /tmp/kit
+          tar -xJf /tmp/kit.tar.xz -C /tmp/kit
+          echo '=== tools/build_emuelec.sh ==='
+          sed -n '1,240p' /tmp/kit/tools/build_emuelec.sh
+          echo '=== tools/apply_emuelec.py top ==='
+          sed -n '1,140p' /tmp/kit/tools/apply_emuelec.py
