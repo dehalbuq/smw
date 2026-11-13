@@ -1,0 +1,57 @@
+name: "R36S - Testar GCC cruzado nativo x86_64 a ARM64"
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "cloud-kit/r36s/Dockerfile.cross-buster-x64"
+      - "cloud-kit/r36s/toolchain-aarch64-buster.cmake"
+      - ".github/workflows/r36s-cross-buster-preflight.yml"
+permissions:
+  contents: read
+jobs:
+  cross-aarch64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Buildar container de compilador cruzado Buster (sem ROM)
+        run: |
+          set -euo pipefail
+          docker build --platform linux/amd64 \
+            -f cloud-kit/r36s/Dockerfile.cross-buster-x64 \
+            -t smw-cross-buster:preflight cloud-kit/r36s
+      - name: Compilar C e C++ ARM64 com SDL2 EGL GLES2 e validar GLIBC
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/r36s-cross-check
+          cat >/tmp/r36s-cross-check/probe.c <<'C'
+          #include <SDL.h>
+          #include <EGL/egl.h>
+          #include <GLES2/gl2.h>
+          #include <stdio.h>
+          int main(void) {
+            printf("SDL %d, EGL=%p, GLES=%p\n", SDL_MAJOR_VERSION,
+                (void *)&eglGetDisplay, (void *)&glGetString);
+            return 0;
+          }
+          C
+          docker run --rm --platform linux/amd64 \
+            --mount type=bind,src=/tmp/r36s-cross-check,dst=/check \
+            smw-cross-buster:preflight bash -euc '
+              set -o pipefail
+              pkg-config --modversion sdl2 egl glesv2
+              aarch64-linux-gnu-gcc -O2 -o /check/probe /check/probe.c \
+                $(pkg-config --cflags --libs sdl2 egl glesv2)
+              readelf -h /check/probe | grep -q "Machine:.*AArch64"
+              readelf --version-info /check/probe > /check/abi.txt
+              python3 - <<PY
+          from pathlib import Path
+          import re
+          x=Path("/check/abi.txt").read_text()
+          v=[tuple(map(int,m)) for m in re.findall(r"GLIBC_(\\d+)\\.(\\d+)",x)]
+          print("MAX_GLIBC=",max(v))
+          assert v and max(v)<=(2,30), "GLIBC too new"
+          PY
+              echo PASS_NATIVE_X64_TO_R36S_AARCH64
+            '
+          echo "PASS_NATIVE_X64_TO_R36S_AARCH64" >> "$GITHUB_STEP_SUMMARY"
