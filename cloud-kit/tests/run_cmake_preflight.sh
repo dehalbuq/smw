@@ -19,7 +19,12 @@ fi
 cleanup() { rm -f "$STUB"; }
 trap cleanup EXIT
 printf '/* preflight placeholder, not game CPU code */\n' > "$STUB"
-cmake -S . -B "$BUILD_DIR" -G Ninja \
+toolchain_args=()
+if [[ -n "${EMU_TOOLCHAIN_FILE:-}" ]]; then
+  test -f "$EMU_TOOLCHAIN_FILE"
+  toolchain_args+=("-DCMAKE_TOOLCHAIN_FILE=$EMU_TOOLCHAIN_FILE")
+fi
+cmake -S . -B "$BUILD_DIR" -G Ninja "${toolchain_args[@]}" \
   -DSMW_EMUELEC_GLES2=ON \
   -DSNESRECOMP_SDL_BACKEND=SDL2 \
   -DSMW_BUNDLE_FALCON_CACHE_HELPER=OFF \
