@@ -73,6 +73,18 @@ if(ANDROID)
 endif()"""
     content = replace_once(content, target_anchor, target_new, "JNI target name")
 
+    # Android TV is offline-only. Stock upstream forces recomp-net/
+    # retcomm-rbengine even when SNESRECOMP_ENABLE_NET=OFF.
+    # Bionic does not expose getifaddrs/freeifaddrs until API 24; our
+    # minimum API 21 needs to avoid recomp-net entirely.
+    net_call = "snesrecomp_enable_recomp_net(SuperMarioWorldSNESRecomp)"
+    content = replace_once(
+        content, net_call,
+        "if(NOT ANDROID)" + chr(10) + "  " + net_call + chr(10) + "endif()",
+        "disable desktop netcode on Android API 21"
+    )
+
+
     # The bundled SDL2 defines SDL2::SDL2 target but does not install
     # a package config during the same CMake configure invocation.
     # Make find_package(SDL2) reuse that target without host libraries.
