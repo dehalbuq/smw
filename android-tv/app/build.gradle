@@ -31,6 +31,13 @@ android {
         }
     }
     externalNativeBuild {
-        cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' }
+        cmake {
+            // Real game top-level CMake uses CMAKE_SOURCE_DIR for its submodules.
+            // Public ROM-free shell preflight uses the local CMake wrapper.
+            path file(System.getenv('SMW_ANDROID_STUB') == 'ON'
+                ? 'src/main/cpp/CMakeLists.txt'
+                : "${System.getenv('SMW_ANDROID_SOURCE')}/CMakeLists.txt")
+            version '3.22.1'
+        }
     }
 }
