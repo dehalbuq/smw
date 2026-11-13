@@ -1,0 +1,89 @@
+name: "SMW Android TV - Real Engine ARM64 NDK Preflight SEM ROM"
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "android-tv/**"
+      - ".github/workflows/smw-android-tv-engine-preflight.yml"
+permissions:
+  contents: read
+jobs:
+  engine-objects:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK/NDK preinstalado ou cmdline tools
+        run: |
+          set -euo pipefail
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/android-sdk}}"
+          mkdir -p "$SDK_DIR/cmdline-tools"
+          SDKM="$(find "$SDK_DIR/cmdline-tools" -name sdkmanager -type f | head -1 || true)"
+          if [[ -z "$SDKM" ]]; then
+            curl -fL --retry 3 -o "$RUNNER_TEMP/cmdline.zip" https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+            unzip -q "$RUNNER_TEMP/cmdline.zip" -d "$RUNNER_TEMP/cmdline-unpack"
+            mkdir -p "$SDK_DIR/cmdline-tools/latest"
+            cp -a "$RUNNER_TEMP/cmdline-unpack/cmdline-tools/." "$SDK_DIR/cmdline-tools/latest/"
+            SDKM="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+          yes | "$SDKM" --sdk_root="$SDK_DIR" --licenses >/dev/null || true
+          "$SDKM" --sdk_root="$SDK_DIR" "ndk;26.3.11579264" "cmake;3.22.1"
+      - name: Preparar upstream e GLES2 sem ROM
+        run: |
+          set -euo pipefail
+          git clone --recurse-submodules https://github.com/mstan/SuperMarioWorldRecomp.git "$RUNNER_TEMP/smw-android-source"
+          git -C "$RUNNER_TEMP/smw-android-source" checkout --detach afc5850ff96ffc7edb63a31725cb5eeacae017bb
+          git -C "$RUNNER_TEMP/smw-android-source" submodule update --init --recursive
+          git clone --depth 1 --branch release-2.30.12 https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/android-sdl2"
+          cd "$RUNNER_TEMP/smw-android-source"
+          base64 --decode "$GITHUB_WORKSPACE/cloud-kit/EmuELEC48_Kit.tar.xz.b64" > "$RUNNER_TEMP/base-kit.tar.xz"
+          echo "e1bb6235bd584df602f5850884937c4f9486f1b7d4cac49309f7c5844a516030  $RUNNER_TEMP/base-kit.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/base-kit"
+          tar -xJf "$RUNNER_TEMP/base-kit.tar.xz" -C "$RUNNER_TEMP/base-kit"
+          cp -a "$RUNNER_TEMP/base-kit/tools/." ./tools/
+          cp -a "$RUNNER_TEMP/base-kit/ports" ./ports
+          python3 tools/apply_emuelec.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/port/gles2_renderer.c')
+          s=p.read_text()
+          anchor='&renderer_begin_draw, &renderer_end_draw,'
+          if s.count(anchor)!=1: raise SystemExit('Renderer vtable drift')
+          p.write_text(s.replace(anchor,anchor+'\\n      NULL,',1))
+          PY
+          python3 "$GITHUB_WORKSPACE/android-tv/scripts/prepare-game.py" \
+            --source "$RUNNER_TEMP/smw-android-source" --port "$GITHUB_WORKSPACE"
+      - name: Configurar CMake real NDK com dummy gerado (nunca ROM)
+        run: |
+          set -euo pipefail
+          S="$RUNNER_TEMP/smw-android-source"
+          mkdir -p "$S/src/gen"
+          test ! -e "$S/smw.sfc"
+          test -z "$(find "$S/src/gen" -maxdepth 1 -name '*.c' -print -quit)"
+          printf '/* only CMake glob marker, never executable game */\n' > "$S/src/gen/__android_preflight_only.c"
+          cmake -S android-tv/app/src/main/cpp -B "$RUNNER_TEMP/android-engine-preflight" -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/26.3.11579264/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 -DCMAKE_BUILD_TYPE=Release \
+            -DSMW_ANDROID_SOURCE="$S" -DSMW_ANDROID_SDL2="$RUNNER_TEMP/android-sdl2" \
+            -DSMW_EMUELEC_GLES2=ON -DSNESRECOMP_SDL_BACKEND=SDL2 \
+            -DSMW_BUNDLE_FALCON_CACHE_HELPER=OFF -DSMW_NETPLAY_ICE=OFF \
+            -DSNESRECOMP_ENABLE_LUA=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            2>&1 | tee "$RUNNER_TEMP/android-engine-cmake.log"
+          python3 cloud-kit/tests/compile_host_objects.py "$RUNNER_TEMP/android-engine-preflight" \
+            2>&1 | tee "$RUNNER_TEMP/android-engine-objects.log"
+          echo 'PASS: 15 real ARM64 Android NDK SMW engine objects without ROM' >> "$GITHUB_STEP_SUMMARY"
+      - name: Guardar logs de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smw-android-ndk-engine-preflight-logs
+          path: |
+            ${{ runner.temp }}/android-engine-cmake.log
+            ${{ runner.temp }}/android-engine-objects.log
+          if-no-files-found: ignore
+          retention-days: 7
