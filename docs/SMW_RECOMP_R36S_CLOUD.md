@@ -1,3 +1,47 @@
+## Primeiro teste real no R36S dArkOSRE: falha no launcher PortMaster (13/11/2026)
+
+**O usuario instalou o pacote da compilacao bem-sucedida**:
+- private workflow [#43343110703](https://github.com/dehalbuq/smw-rom-private/actions/runs/43343110703), attempt 2, **completed:success**;
+- artefato **SMWRecomp-R36S-KALI-AArch64-GLES2-GLIBC228-EXPERIMENTAL**, gerado sem ROM.
+
+**Log coletado do console fisico**:
+```text
+=== R36S SMW Recomp (experimental) ===
+UTC 2025-09-04T11:58:58Z
+Linux darkosre-r36 4.4.189 #62 SMP Sat Dec 13 08:49:45 CST 2025 aarch64 GNU/Linux
+glibc: glibc 2.41
+PortMaster: /opt/system/Tools/PortMaster
+/opt/system/Tools/PortMaster/device_info.txt: line 32: DEVICE_INFO_VERSION: unbound variable
+```
+
+**Diagnostico:** falha ocorre **antes de executar** `SuperMarioWorldSNESRecomp`.
+O launcher do jogo ativava `set -u` (nounset), enquanto o
+PortMaster do dArkOSRE faz `source device_info.txt` e utiliza uma
+variavel opcional `DEVICE_INFO_VERSION` que esta ausente no firmware.
+
+**Correção pontual:** commit
+[`c4b86303ed13cb4bf80619a0bfb41c46c9cddc4e`](https://github.com/dehalbuq/smw/commit/c4b86303ed13cb4bf80619a0bfb41c46c9cddc4e),
+em `cloud-kit/r36s/SMW Recomp R36S.sh`:
+desabilita nounset (`set +u`), registra marcador
+`SMW_LAUNCHER_FIX=PORTMASTER_NOUNSET_COMPAT_V1` e, se
+o binario for executado mas terminar com codigo != 0, chama
+`diagnose_r36s.sh` automaticamente.
+
+**Teste local (simulacao):** `bash -n` PASS;
+`PortMaster/control.txt` sintetico referencia variavel
+`DEVICE_INFO_VERSION` ausente, `get_controls` e chamado,
+e executavel dummy registra `GAME_EXECUTED=PASS`. 
+**NAO** equivale a teste do jogo real no R36S.
+
+**Distribuicao:** ZIP somente com o launcher atualizado,
+para colocar em `F:\\ports\\SMW Recomp R36S.sh`;
+nao substitui executavel/ROM nem necessita rebuild.
+Proximo teste: pedir `smwrecompr36s/smw-r36s.log` e, se existir,
+`smwrecompr36s/r36s-diagnostics.txt`. Em caso de falha nova
+avaliar SDL2 runtime/loader EGL/GLES, controles, display e audio
+antes de declarar port funcional.
+
+
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
 ## Kali compilacao cruzada passou objetos mas falhou no linker C++17 (12/11/2026)
