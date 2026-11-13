@@ -87,6 +87,21 @@ if s.count(before) != 1:
 p.write_text(s.replace(before, after), encoding="utf-8")
 print("PASS: SDL_OpenURL compatibility for SDL2 older than 2.0.14")
 PY
+# GCC 8 (Buster) implements C++17 std::filesystem in the separate
+# libstdc++fs archive. It must be linked AFTER the C++ objects and other libs.
+# Append at the end of this temporary checkout's CMakeLists (not upstream).
+if [[ "$(uname -m)" == x86_64 ]]; then
+  cat >> CMakeLists.txt <<'CMAKE'
+
+# R36S native x86_64-to-AArch64 cross compiler, GCC 8 / C++17 filesystem.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+    AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+    target_link_libraries(SuperMarioWorldSNESRecomp PRIVATE stdc++fs)
+endif()
+CMAKE
+  grep -q 'target_link_libraries(SuperMarioWorldSNESRecomp PRIVATE stdc++fs)' CMakeLists.txt
+  echo "PASS: GCC 8 C++17 filesystem linking enabled"
+fi
 if command -v ccache >/dev/null; then
   echo "CCACHE before build:"
   ccache -s || true
