@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Experimental R36S / ArkOS / dArkOSRE / ArkOS4Clone launcher for SMW static recomp.
 # Independent of the original dehalbuq/smw R36S port. No system library changes.
-set -u
+# IMPORTANT: PortMaster control.txt/device_info.txt uses optional environment
+# variables (e.g. DEVICE_INFO_VERSION) that are not defined on all dArkOSRE
+# builds. Bash nounset (-u) terminates the whole launcher before the game runs.
+# Keep nounset disabled when sourcing PortMaster's firmware-controlled scripts.
+set +u
+echo "SMW_LAUNCHER_FIX=PORTMASTER_NOUNSET_COMPAT_V1"
 
 PORTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GAMEDIR="$PORTS_DIR/smwrecompr36s"
@@ -89,5 +94,9 @@ echo "Executando $BIN"
 "$BIN"
 rc=$?
 echo "Processo encerrado com codigo $rc"
+if (( rc != 0 )) && [[ -f "$GAMEDIR/diagnose_r36s.sh" ]]; then
+  echo "Executando diagnostico automatico porque o jogo terminou com erro..."
+  bash "$GAMEDIR/diagnose_r36s.sh" || true
+fi
 echo "Log: $LOG"
 exit "$rc"
