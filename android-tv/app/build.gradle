@@ -14,7 +14,7 @@ android {
             cmake {
                 arguments "-DSMW_ANDROID_SOURCE=${System.getenv('SMW_ANDROID_SOURCE') ?: 'NOT_SET'}", 
                     "-DSMW_ANDROID_SDL2=${System.getenv('SMW_ANDROID_SDL2') ?: 'NOT_SET'}", 
-                    '-DANDROID_STL=c++_shared', '-DSMW_EMUELEC_GLES2=ON',
+                    "-DSMW_ANDROID_STUB=${System.getenv('SMW_ANDROID_STUB') ?: 'OFF'}", '-DANDROID_STL=c++_shared', '-DSMW_EMUELEC_GLES2=ON',
                     '-DSNESRECOMP_SDL_BACKEND=SDL2', '-DSMW_BUNDLE_FALCON_CACHE_HELPER=OFF',
                     '-DSMW_NETPLAY_ICE=OFF', '-DSNESRECOMP_ENABLE_LUA=OFF',
                     '-DSMW_ANDROID_TV=ON'
