@@ -20,12 +20,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - uses: android-actions/setup-android@v3
-      - name: Instalar Android SDK e NDK
+      - name: Preparar Android SDK command-line tools (sem pacote tools obsoleto)
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;26.3.11579264" "cmake;3.22.1"
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/android-sdk}}"
+          mkdir -p "$SDK_DIR/cmdline-tools"
+          SDKM="$(find "$SDK_DIR/cmdline-tools" -name sdkmanager -type f | head -1 || true)"
+          if [[ -z "$SDKM" ]]; then
+            curl --fail --location --retry 3 -o "$RUNNER_TEMP/cmdline-tools.zip" \
+              https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+            unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/android-commandline-tools"
+            mkdir -p "$SDK_DIR/cmdline-tools/latest"
+            cp -a "$RUNNER_TEMP/android-commandline-tools/cmdline-tools/." "$SDK_DIR/cmdline-tools/latest/"
+            SDKM="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "$(dirname "$SDKM")" >> "$GITHUB_PATH"
+          yes | "$SDKM" --sdk_root="$SDK_DIR" --licenses >/dev/null || true
+          "$SDKM" --sdk_root="$SDK_DIR" "platforms;android-35" "build-tools;35.0.0" "ndk;26.3.11579264" "cmake;3.22.1"
+          echo 'PASS: SDK command-line tools and ARM64 NDK installed' >> "$GITHUB_STEP_SUMMARY"
       - name: Obter SDL2 e classes Java (ROM-free)
         run: |
           set -euo pipefail
