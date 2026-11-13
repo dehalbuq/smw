@@ -8,9 +8,8 @@
 - Teste de ligacao C++17 na toolchain sem ROM adicionado em
   [`r36s-cross-buster-preflight.yml`](../.github/workflows/r36s-cross-buster-preflight.yml),
   commit `fb4029738a8d24af986c1e975a6a081696a5b148`. Conferir status antes de declarar PASS; os testes anteriores #43343324382 compilaram 15 modulos, mas **nao** fizeram a ligacao completa C++17 com filesystem.
-- Proximo passo: valida-lo e rerodar `#43343110703` no runner privado.
-  A ROM e os gerados da CPU devem permanecer apenas no workflow privado.
-  Nao declarar ZIP pronto sem `completed:success` e artefato valido.
+- **Teste de link GCC8/C++17 APROVADO:** [#43349509607](https://github.com/dehalbuq/smw/actions/runs/43349509607): `Testar ligacao C++17 std::filesystem com GCC 8 AArch64` = PASS; motor real 15 modulos e link SDL2/EGL/GLES2 = PASS. Commit teste `fb4029738a8d24af986c1e975a6a081696a5b148`.
+- **Nova tentativa privada disparada:** run #43343110703, attempt 2, novo job 131637508176, passou verificacoes iniciais e estava clonando/adaptando fontes na ultima consulta. O workflow clona `dehalbuq/smw` novamente, portanto inclui patch atualizado. A ROM e os gerados da CPU devem permanecer apenas no workflow privado. Nao declarar ZIP pronto sem `completed:success` e artefato valido.
 
 ## Falha apos recadastro aceito: investigar hora da VM (12/11/2026)
 
