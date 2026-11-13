@@ -1,5 +1,24 @@
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
+## Segunda falha real / Python 3.7 co-op hooks (12/11/2026)
+
+- [Segunda tentativa Kali #43331876649](https://github.com/dehalbuq/smw-rom-private/actions/runs/43331876649)
+  (attempt 1) falhou ao gerar `smw_renderer_hooks.stamp` por
+  `tools/apply_coop_hooks.py:70`:
+  `TypeError: write_text() got an unexpected keyword argument 'newline'`.
+- O patch anterior do renderer **passou** e imprimiu
+  `SMW host hooks: 23 sites, 13 banks updated`. A falha do cooperativo
+  vinha da mesma API Python incompatível com o Buster.
+- Corrigido `cloud-kit/r36s/build-and-package.sh` para aplicar
+  **ambos** os patches exatos antes da compilação e verificar a sintaxe
+  `compile(..., 'exec')`, com âncoras específicas e fail-fast para drift.
+  Commit: `6f5503e08ae36175b5030e7366e318289e9f4828`.
+- Reexecução do job com `rerun_failed_workflow_run_jobs` na **attempt 2**
+  do mesmo run #43331876649. O workflow clona o port público no início,
+  portanto consome a correção nova no início da execução.
+- Importante: esperar conclusão explícita antes de declarar ZIP pronto.
+  Revisar `r36s-compile.log` caso surjam erros posteriores.
+
 ## Falha real do primeiro build completo e correcao (12/11/2026)
 
 - [Execucao Kali #43295544908](https://github.com/dehalbuq/smw-rom-private/actions/runs/43295544908):
