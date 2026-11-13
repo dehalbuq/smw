@@ -20,6 +20,28 @@ jobs:
           docker build --platform linux/amd64 \
             -f cloud-kit/r36s/Dockerfile.cross-buster-x64 \
             -t smw-cross-buster:preflight cloud-kit/r36s
+      - name: Testar ligacao C++17 std::filesystem com GCC 8 AArch64
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cross-fs"
+          cat > "$RUNNER_TEMP/cross-fs/probe.cpp" <<'CPP'
+          #include <filesystem>
+          #include <string>
+          int main(int argc, char** argv) {
+            auto p = std::filesystem::path(argc > 1 ? argv[1] : "/tmp");
+            return std::filesystem::exists(p) ? 0 : 1;
+          }
+          CPP
+          docker run --rm --platform linux/amd64 \
+            --mount "type=bind,src=$RUNNER_TEMP/cross-fs,dst=/probe" \
+            smw-cross-buster:preflight bash -euc '
+              aarch64-linux-gnu-g++ -std=c++17 -O2 -o /probe/probe /probe/probe.cpp -lstdc++fs
+              readelf -h /probe/probe | grep -q "Machine:.*AArch64"
+              aarch64-linux-gnu-nm -D /probe/probe 2>/dev/null | grep -q "std" || true
+              echo PASS_CXX17_FILESYSTEM_LINK_AARCH64_GCC8
+            '
+          echo 'PASS: GCC 8 ARM64 C++17 filesystem link via -lstdc++fs' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Configurar motor real e compilar 15 modulos ARM64 SEM ROM
         run: |
           set -euo pipefail
