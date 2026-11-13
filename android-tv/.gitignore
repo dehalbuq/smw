@@ -1,0 +1,9 @@
+.gradle/
+build/
+app/build/
+app/.cxx/
+app/src/main/assets/smw.sfc
+app/src/main/java/org/libsdl/
+local.properties
+*.apk
+*.aab
