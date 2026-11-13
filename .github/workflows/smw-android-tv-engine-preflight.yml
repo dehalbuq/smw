@@ -77,6 +77,9 @@ jobs:
           python3 cloud-kit/tests/compile_host_objects.py "$RUNNER_TEMP/android-engine-preflight" \
             2>&1 | tee "$RUNNER_TEMP/android-engine-objects.log"
           echo 'PASS: 15 real ARM64 Android NDK SMW engine objects without ROM' >> "$GITHUB_STEP_SUMMARY"
+          JOBS=4 python3 android-tv/scripts/compile-all-host-objects.py "$RUNNER_TEMP/android-engine-preflight" \
+            2>&1 | tee "$RUNNER_TEMP/android-engine-all-objects.log"
+          echo 'PASS: all ROM-free host engine objects compile on Android ARM64' >> "$GITHUB_STEP_SUMMARY"
       - name: Guardar logs de falha
         if: failure()
         uses: actions/upload-artifact@v4
@@ -85,5 +88,6 @@ jobs:
           path: |
             ${{ runner.temp }}/android-engine-cmake.log
             ${{ runner.temp }}/android-engine-objects.log
+            ${{ runner.temp }}/android-engine-all-objects.log
           if-no-files-found: ignore
           retention-days: 7
