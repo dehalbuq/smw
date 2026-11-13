@@ -1,5 +1,55 @@
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
+## Fase Kali acelerada - compilacao cruzada nativa x86_64 para ARM64 (12/11/2026)
+
+**Ultima falha:** segundo attempt do [Kali #43331876649](https://github.com/dehalbuq/smw-rom-private/actions/runs/43331876649)
+chegou a **96%** e falhou em
+`recomp-ui/src/common/backends/imgui/launcher_imgui.cpp:12525`:
+`SDL_OpenURL was not declared in this scope`. Debian Buster usa SDL2 2.0.9,
+anterior a `SDL_OpenURL` (SDL 2.0.14). O build nao falhou por falta de
+CPU ou RAM. A recompilacao ARM64 dentro de QEMU demorava excessivamente.
+
+**Correcao principal de performance:** abandonar QEMU para o GCC.
+Rodar um Docker **amd64 nativo no Kali x86_64** com toolchain
+`aarch64-linux-gnu-gcc/g++` e libs ARM64 multiarch do Debian Buster.
+O executavel produzido continua ELF AArch64 GLIBC<=2.30 para R36S.
+Arquivos novos:
+- [`Dockerfile.cross-buster-x64`](../cloud-kit/r36s/Dockerfile.cross-buster-x64)
+- [`toolchain-aarch64-buster.cmake`](../cloud-kit/r36s/toolchain-aarch64-buster.cmake)
+- [`r36s-cross-buster-preflight.yml`](../.github/workflows/r36s-cross-buster-preflight.yml)
+
+**Testes publicos ja PASSARAM, sem ROM:**
+- [#43342742106](https://github.com/dehalbuq/smw/actions/runs/43342742106):
+  compilador cruzado x86->ARM64, link SDL2/EGL/GLES2 e verificacao de
+  versoes GLIBC do ELF gerado.
+- [#43343324382](https://github.com/dehalbuq/smw/actions/runs/43343324382):
+  configuracao CMake original e **15 modulos reais** da engine (SDL2/GLES2,
+  widescreen, co-op, launcher) compilados com o cross GCC nativo.
+
+**Compatibilidade SDL:** o
+[`build-and-package.sh`](../cloud-kit/r36s/build-and-package.sh)
+aplica patch verificado que envolve `SDL_OpenURL` com
+`#if SDL_VERSION_ATLEAST(2,0,14)`; no SDL2 2.0.9 nao tenta abrir
+URL externa e conserva o resto da UI e jogo. Preserva os dois patches Python
+3.7 para hooks de renderer e co-op.
+
+**Workflow privado Kali atualizado:**
+[`smw-r36s-kali-selfhosted.yml`](https://github.com/dehalbuq/smw-rom-private/blob/main/.github/workflows/smw-r36s-kali-selfhosted.yml)
+commit `79d93a2646c8f667dd8c5b0a0b9ee67784bcae90`. Ele avalia
+`nproc`, MemAvailable e usa `JOBS = min(nproc, MemAvailable_MiB/1200)`
+com minimo de 1, e `ccache` persistente em
+`~/.cache/smw-r36s-ccache` (maximo 6GB) para evitar compilar tudo
+do zero ao corrigir futuros erros. O QEMU nao executa mais compiladores,
+apenas continua disponivel como ferramenta opcional de diagnostico.
+
+**Execucao:** [#43343110703](https://github.com/dehalbuq/smw-rom-private/actions/runs/43343110703)
+criada automaticamente, **ainda queued no ultimo exame**, portanto
+**nao ha ZIP aprovado nem tempo/velocidade medidos no Kali**.
+Se nao iniciar, deixar a VM VirtualBox ligada, confirmar
+`sudo ~/actions-runner-smw-r36s/svc.sh status` como `smwrunner`
+ou revisar runner em Settings/Actions/Runners. Nao declarar sucesso
+sem job concluido e artefato valido.
+
 ## Segunda falha real / Python 3.7 co-op hooks (12/11/2026)
 
 - [Segunda tentativa Kali #43331876649](https://github.com/dehalbuq/smw-rom-private/actions/runs/43331876649)
