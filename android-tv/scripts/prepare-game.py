@@ -87,6 +87,25 @@ endif()
 set(SDL2_FOUND TRUE)
 """, encoding="utf-8")
 
+    # On Android /proc/self/exe identifies app_process in /system/bin,
+    # not the APK native library. Anchor configs/saves to the private app
+    # directory provided by our JNI entry via HOME, preserving save writes.
+    host_paths = source / "snesrecomp/runner/src/host_paths.c"
+    hp = host_paths.read_text(encoding="utf-8")
+    hp = replace_once(
+        hp,
+        "#elif defined(__linux__)\n",
+        """#elif defined(__ANDROID__)
+    const char *app_data = getenv("HOME");
+    if (!app_data || !*app_data)
+        return 0;
+    return snprintf(out, max_len, "%s/SMWRecompAndroidTV", app_data) < (int)max_len;
+#elif defined(__linux__)
+""",
+        "Android private storage for config/saves",
+    )
+    host_paths.write_text(hp, encoding="utf-8")
+
     cfile.write_text(content, encoding="utf-8")
     shutil.copy2(port / "android-tv/app/src/main/cpp/android_entry.c",
                  source / "src/port/android_entry.c")
