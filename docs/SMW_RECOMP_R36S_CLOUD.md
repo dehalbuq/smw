@@ -1,5 +1,39 @@
 # SMW Recomp R36S — ARM64 SDL2 OpenGL ES 2.0 (PortMaster experimental)
 
+## Recuperacao do runner Kali com registro removido (12/11/2026)
+
+O usuario compartilhou `systemd` mostrando que a VM conecta ao GitHub,
+mas o listener encerra com
+`Failed to create a session. The runner registration has been deleted from the server, please re-configure`.
+A tela `Active: active (running)` 27ms apos `svc.sh start` nao prova
+que o servico permaneceu conectado. A compilacao privada
+[#43343110703](https://github.com/dehalbuq/smw-rom-private/actions/runs/43343110703)
+continuava `queued` quando checada.
+
+Um script publico de reparo foi adicionado:
+[`cloud-kit/r36s/RECUPERAR_RUNNER_KALI.sh`](../cloud-kit/r36s/RECUPERAR_RUNNER_KALI.sh).
+
+Executar **no Kali** como usuario `smwrunner`:
+```bash
+curl -fL https://raw.githubusercontent.com/dehalbuq/smw/main/cloud-kit/r36s/RECUPERAR_RUNNER_KALI.sh -o RECUPERAR_RUNNER_KALI.sh
+bash RECUPERAR_RUNNER_KALI.sh
+```
+
+O script para/desinstala apenas o serviço runner, faz backup
+restrito dos arquivos locais `.runner`, `.credentials` e
+`.credentials_rsaparams`, pede autorizacao GitHub em ambiente
+temporario (`GH_CONFIG_DIR`, com `--insecure-storage`), solicita
+novo registration-token via GitHub API, registra somente no repo
+privado com label `r36s-kali`, reinicia servico e consulta se aparece
+`online`. **Nao** reinstala o Kali, nao apaga a pasta `_work` e
+nao expoe SSH ou credenciais ao chat. Teste de sintaxe publica em
+[`r36s-runner-recovery-check.yml`](../.github/workflows/r36s-runner-recovery-check.yml).
+
+Se o runner permanecer offline, coletar
+`sudo journalctl --no-pager -n 40 -u actions.runner.dehalbuq-smw-rom-private.kali-r36s-kali.service`
+sem expor segredos. Nao considerar o workflow aprovado ate constar
+`completed: success` e artefato sem ROM.
+
 ## Fase Kali acelerada - compilacao cruzada nativa x86_64 para ARM64 (12/11/2026)
 
 **Ultima falha:** segundo attempt do [Kali #43331876649](https://github.com/dehalbuq/smw-rom-private/actions/runs/43331876649)
