@@ -1,0 +1,60 @@
+name: "SMW Android TV - APK Shell Preflight SEM ROM"
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "android-tv/**"
+      - ".github/workflows/smw-android-tv-shell-preflight.yml"
+permissions:
+  contents: read
+jobs:
+  android-tv-shell:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - uses: android-actions/setup-android@v3
+      - name: Instalar Android SDK e NDK
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;26.3.11579264" "cmake;3.22.1"
+      - name: Obter SDL2 e classes Java (ROM-free)
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch release-2.30.12 https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/android-sdl2"
+          mkdir -p android-tv/app/src/main/java/org/libsdl
+          cp -a "$RUNNER_TEMP/android-sdl2/android-project/app/src/main/java/org/libsdl/app" \
+            android-tv/app/src/main/java/org/libsdl/app
+      - name: Compilar atividade e JNI SDL2 arm64 somente
+        env:
+          SMW_ANDROID_STUB: 'ON'
+        run: |
+          set -euo pipefail
+          export SMW_ANDROID_SDL2="$RUNNER_TEMP/android-sdl2"
+          cd android-tv
+          gradle --no-daemon --max-workers 4 --stacktrace :app:assembleDebug \
+            2>&1 | tee "$RUNNER_TEMP/android-tv-shell-gradle.log"
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libmain.so'
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libSDL2.so'
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee "$RUNNER_TEMP/tv-badging.txt"
+          grep -q "leanback-launchable-activity" "$RUNNER_TEMP/tv-badging.txt"
+          echo 'PASS: ROM-free Android TV activity APK + SDL2 native arm64 JNI' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Note: shell-only, does not run the game. Game APK only in private workflow.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Publicar logs se falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-tv-shell-preflight-logs
+          path: ${{ runner.temp }}/android-tv-shell-gradle.log
+          if-no-files-found: ignore
+          retention-days: 7
