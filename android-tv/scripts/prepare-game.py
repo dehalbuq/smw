@@ -106,6 +106,22 @@ set(SDL2_FOUND TRUE)
     )
     host_paths.write_text(hp, encoding="utf-8")
 
+    # Fullscreen is guaranteed regardless of any imported desktop config.
+    # The Android Activity also runs immersive, without a touch overlay.
+    game_main = source / "src/main.c"
+    game_text = game_main.read_text(encoding="utf-8")
+    game_text = replace_once(
+        game_text,
+        "  // Window scale (1=100%, 2=200%, 3=300%, etc.)",
+        """#ifdef __ANDROID__
+  g_win_flags |= SDL_WINDOW_FULLSCREEN;
+#endif
+
+  // Window scale (1=100%, 2=200%, 3=300%, etc.)""",
+        "Android TV forced native fullscreen"
+    )
+    game_main.write_text(game_text, encoding="utf-8")
+
     cfile.write_text(content, encoding="utf-8")
     shutil.copy2(port / "android-tv/app/src/main/cpp/android_entry.c",
                  source / "src/port/android_entry.c")
