@@ -57,7 +57,7 @@ jobs:
           PY
           python3 "$GITHUB_WORKSPACE/android-tv/scripts/prepare-game.py" \
             --source "$RUNNER_TEMP/smw-android-source" --port "$GITHUB_WORKSPACE"
-      - name: Configurar CMake real NDK com dummy gerado (nunca ROM)
+      - name: Validar Android TV fullscreen, armazenamento privado e 167 modulos
         run: |
           set -euo pipefail
           S="$RUNNER_TEMP/smw-android-source"
