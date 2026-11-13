@@ -3,7 +3,6 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "android-tv/**"
       - ".github/workflows/smw-android-tv-engine-preflight.yml"
 permissions:
   contents: read
